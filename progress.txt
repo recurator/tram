@@ -19,6 +19,24 @@
 - Use mean pooling + normalization for sentence embeddings
 - Common model dimensions: MiniLM = 384, mpnet/gte-base/e5-base = 768
 
+- OpenAI embedding models: text-embedding-3-small (1536), text-embedding-3-large (3072), text-embedding-ada-002 (1536)
+- Use native fetch() for API calls (Node 18+); no additional HTTP library needed
+- OpenAI embeddings API may return results out of order; sort by index field
+- Provide specific error guidance based on HTTP status (401=auth, 429=rate limit, 400=bad input)
+
+---
+
+## 2026-01-31 - US-007
+- What was implemented: Created OpenAIEmbeddingProvider for cloud-based embeddings via OpenAI API
+- Files changed:
+  - extensions/memory-tiered/embeddings/openai.ts (new)
+- **Learnings for future iterations:**
+  - OpenAI embeddings API endpoint: https://api.openai.com/v1/embeddings
+  - API key required in config; validated in constructor with actionable error message
+  - Default model is text-embedding-3-small with 1536 dimensions
+  - embedBatch uses the same endpoint with array input for efficiency
+  - Response data may be unordered; sort by index before returning
+  - Network errors detected via TypeError from fetch; provide connectivity guidance
 ---
 
 ## 2026-01-31 - US-006
