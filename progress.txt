@@ -4,6 +4,25 @@
 - Use JSDoc comments on interfaces and enums to document purpose and half-lives
 - JSON arrays stored as strings in SQLite (e.g., use_days)
 
+- Use better-sqlite3 for synchronous SQLite operations with TypeScript
+- Enable WAL mode (journal_mode = WAL) for concurrency
+- Use INTEGER for boolean columns (do_not_inject, pinned) with 0/1 values
+- Foreign key constraints supported but need PRAGMA foreign_keys = ON for enforcement
+
+---
+
+## 2026-01-31 - US-003
+- What was implemented: Created SQLite database wrapper with full schema initialization
+- Files changed:
+  - extensions/memory-tiered/db/sqlite.ts (new)
+  - extensions/memory-tiered/package.json (added better-sqlite3)
+  - extensions/memory-tiered/package-lock.json (new)
+- **Learnings for future iterations:**
+  - better-sqlite3 requires native compilation; works best with Node.js 18+
+  - SQLite CHECK constraints enforce tier values at DB level: CHECK (tier IN ('HOT', 'WARM', 'COLD', 'ARCHIVE'))
+  - Schema includes nullable columns entity_refs and meta_type for Phase 2 extensions
+  - The Database class initializes schema in constructor - call once per db path
+  - WAL mode provides better concurrency for read-heavy workloads
 ---
 
 ## 2026-01-31 - US-002
