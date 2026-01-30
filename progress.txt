@@ -29,6 +29,25 @@
 - Cosine similarity: dot(a,b) / (||a|| * ||b||), clamp result to [0,1] for floating point safety
 - Convert Buffer to Float32Array using buffer.buffer, buffer.byteOffset, buffer.byteLength/4
 
+- MemoryScorer uses exp(-age/halflife) for recency decay; pinned memories bypass this with value 1.0
+- Frequency component uses log(1+use_count) normalized by log(101)≈4.6 for reasonable scaling
+- scoreWithBreakdown() provides transparency for memory_explain tool implementation
+
+---
+
+## 2026-01-31 - US-010
+- What was implemented: Created MemoryScorer class with composite scoring formula
+- Files changed:
+  - extensions/memory-tiered/core/scorer.ts (new)
+- **Learnings for future iterations:**
+  - Composite score formula: w_sim * similarity + w_rec * exp(-age/halflife) + w_freq * log(1+use_count)
+  - effective_age = now - max(created_at, last_accessed_at) in days
+  - Half-lives exported as HALF_LIVES constant for reuse in other modules
+  - Pinned memories: recencyValue = 1 (infinite half-life)
+  - COLD tier: recencyValue *= 0.5 (additional penalty)
+  - ARCHIVE tier: totalScore = 0 (never injected)
+  - Frequency normalized by log(101)≈4.6 to keep component in 0-1 range
+  - scoreWithBreakdown() returns all components for explainability (useful for memory_explain tool)
 ---
 
 ## 2026-01-31 - US-009
