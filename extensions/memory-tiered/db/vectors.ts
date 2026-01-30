@@ -1,0 +1,304 @@
+/**
+ * Vector search operations using sqlite-vec with cosine similarity fallback.
+ * Provides semantic similarity search for memory embeddings.
+ */
+
+import type { Database as SqliteDb, Statement } from "better-sqlite3";
+
+/**
+ * Result from a vector similarity search.
+ */
+export interface VectorSearchResult {
+  /** Memory ID */
+  id: string;
+  /** Memory text content */
+  text: string;
+  /** Cosine similarity score (0 to 1, higher is more similar) */
+  similarity: number;
+}
+
+/**
+ * Vector search helper class providing semantic similarity search.
+ * Attempts to use sqlite-vec extension for efficient search, falling back
+ * to in-process cosine similarity when extension is unavailable.
+ */
+export class VectorHelper {
+  private db: SqliteDb;
+  private sqliteVecAvailable: boolean = false;
+  private dimensions: number;
+  private searchStmt: Statement | null = null;
+
+  /**
+   * Create a new VectorHelper instance.
+   * @param db - The better-sqlite3 database instance
+   * @param dimensions - The dimensionality of embedding vectors
+   */
+  constructor(db: SqliteDb, dimensions: number) {
+    this.db = db;
+    this.dimensions = dimensions;
+    this.initialize();
+  }
+
+  /**
+   * Initialize vector storage, attempting to load sqlite-vec extension.
+   */
+  private initialize(): void {
+    // Try to load sqlite-vec extension
+    try {
+      // Common extension paths to try
+      const extensionPaths = [
+        "vec0",
+        "./vec0",
+        "sqlite-vec",
+        "./sqlite-vec",
+      ];
+
+      let loaded = false;
+      for (const path of extensionPaths) {
+        try {
+          this.db.loadExtension(path);
+          loaded = true;
+          break;
+        } catch {
+          // Try next path
+        }
+      }
+
+      if (loaded) {
+        this.sqliteVecAvailable = true;
+        this.createVecTable();
+      } else {
+        throw new Error("No extension path worked");
+      }
+    } catch {
+      // sqlite-vec not available, will use cosine fallback
+      this.sqliteVecAvailable = false;
+      console.warn(
+        "[memory-tiered] sqlite-vec extension not available. " +
+        "Falling back to in-process cosine similarity. " +
+        "For better performance, install sqlite-vec: npm install sqlite-vec"
+      );
+      this.createFallbackTable();
+    }
+  }
+
+  /**
+   * Create vec0 virtual table for sqlite-vec based vector search.
+   */
+  private createVecTable(): void {
+    this.db.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS memory_vectors USING vec0(
+        memory_id TEXT PRIMARY KEY,
+        embedding FLOAT[${this.dimensions}]
+      )
+    `);
+  }
+
+  /**
+   * Create fallback table for storing embeddings when sqlite-vec unavailable.
+   */
+  private createFallbackTable(): void {
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS memory_vectors (
+        memory_id TEXT PRIMARY KEY,
+        embedding BLOB NOT NULL,
+        FOREIGN KEY (memory_id) REFERENCES memories(id) ON DELETE CASCADE
+      )
+    `);
+  }
+
+  /**
+   * Store an embedding vector for a memory.
+   * @param memoryId - The memory ID
+   * @param embedding - The embedding vector
+   */
+  storeEmbedding(memoryId: string, embedding: number[]): void {
+    if (this.sqliteVecAvailable) {
+      // sqlite-vec uses JSON array format
+      const stmt = this.db.prepare(`
+        INSERT OR REPLACE INTO memory_vectors (memory_id, embedding)
+        VALUES (?, ?)
+      `);
+      stmt.run(memoryId, JSON.stringify(embedding));
+    } else {
+      // Store as binary blob for fallback
+      const buffer = Buffer.from(new Float32Array(embedding).buffer);
+      const stmt = this.db.prepare(`
+        INSERT OR REPLACE INTO memory_vectors (memory_id, embedding)
+        VALUES (?, ?)
+      `);
+      stmt.run(memoryId, buffer);
+    }
+  }
+
+  /**
+   * Delete an embedding vector for a memory.
+   * @param memoryId - The memory ID
+   */
+  deleteEmbedding(memoryId: string): void {
+    const stmt = this.db.prepare(`DELETE FROM memory_vectors WHERE memory_id = ?`);
+    stmt.run(memoryId);
+  }
+
+  /**
+   * Search for similar memories using vector similarity.
+   * @param queryEmbedding - The query embedding vector
+   * @param limit - Maximum number of results (default: 10)
+   * @returns Array of search results with similarity scores
+   */
+  vectorSearch(queryEmbedding: number[], limit: number = 10): VectorSearchResult[] {
+    if (this.sqliteVecAvailable) {
+      return this.vectorSearchSqliteVec(queryEmbedding, limit);
+    } else {
+      return this.vectorSearchCosineFallback(queryEmbedding, limit);
+    }
+  }
+
+  /**
+   * Vector search using sqlite-vec extension.
+   */
+  private vectorSearchSqliteVec(queryEmbedding: number[], limit: number): VectorSearchResult[] {
+    // sqlite-vec provides vec_distance_cosine function
+    const stmt = this.db.prepare(`
+      SELECT
+        v.memory_id as id,
+        m.text,
+        1 - vec_distance_cosine(v.embedding, ?) as similarity
+      FROM memory_vectors v
+      JOIN memories m ON v.memory_id = m.id
+      ORDER BY vec_distance_cosine(v.embedding, ?)
+      LIMIT ?
+    `);
+
+    const queryJson = JSON.stringify(queryEmbedding);
+    const results = stmt.all(queryJson, queryJson, limit) as Array<{
+      id: string;
+      text: string;
+      similarity: number;
+    }>;
+
+    return results.map((row) => ({
+      id: row.id,
+      text: row.text,
+      similarity: row.similarity,
+    }));
+  }
+
+  /**
+   * Vector search using in-process cosine similarity fallback.
+   */
+  private vectorSearchCosineFallback(queryEmbedding: number[], limit: number): VectorSearchResult[] {
+    // Fetch all embeddings and compute similarity in-process
+    const stmt = this.db.prepare(`
+      SELECT v.memory_id as id, m.text, v.embedding
+      FROM memory_vectors v
+      JOIN memories m ON v.memory_id = m.id
+    `);
+
+    const rows = stmt.all() as Array<{
+      id: string;
+      text: string;
+      embedding: Buffer;
+    }>;
+
+    // Compute similarities
+    const results: VectorSearchResult[] = rows.map((row) => {
+      const embedding = this.bufferToFloatArray(row.embedding);
+      const similarity = this.cosineSimilarity(queryEmbedding, embedding);
+      return {
+        id: row.id,
+        text: row.text,
+        similarity,
+      };
+    });
+
+    // Sort by similarity descending and limit
+    results.sort((a, b) => b.similarity - a.similarity);
+    return results.slice(0, limit);
+  }
+
+  /**
+   * Convert Buffer to Float32 array.
+   */
+  private bufferToFloatArray(buffer: Buffer): number[] {
+    const floatArray = new Float32Array(
+      buffer.buffer,
+      buffer.byteOffset,
+      buffer.byteLength / 4
+    );
+    return Array.from(floatArray);
+  }
+
+  /**
+   * Compute cosine similarity between two vectors.
+   * @param a - First vector
+   * @param b - Second vector
+   * @returns Cosine similarity (0 to 1)
+   */
+  private cosineSimilarity(a: number[], b: number[]): number {
+    if (a.length !== b.length) {
+      throw new Error(`Vector dimension mismatch: ${a.length} vs ${b.length}`);
+    }
+
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+
+    for (let i = 0; i < a.length; i++) {
+      dotProduct += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+
+    normA = Math.sqrt(normA);
+    normB = Math.sqrt(normB);
+
+    if (normA === 0 || normB === 0) {
+      return 0;
+    }
+
+    // Clamp to [0, 1] range to handle floating point errors
+    const similarity = dotProduct / (normA * normB);
+    return Math.max(0, Math.min(1, similarity));
+  }
+
+  /**
+   * Check if sqlite-vec extension is available.
+   */
+  isSqliteVecAvailable(): boolean {
+    return this.sqliteVecAvailable;
+  }
+
+  /**
+   * Get the number of stored embeddings.
+   */
+  getEmbeddingCount(): number {
+    const result = this.db.prepare("SELECT COUNT(*) as count FROM memory_vectors").get() as { count: number };
+    return result.count;
+  }
+
+  /**
+   * Get an embedding by memory ID.
+   * @param memoryId - The memory ID
+   * @returns The embedding vector or null if not found
+   */
+  getEmbedding(memoryId: string): number[] | null {
+    if (this.sqliteVecAvailable) {
+      const stmt = this.db.prepare(`
+        SELECT embedding FROM memory_vectors WHERE memory_id = ?
+      `);
+      const result = stmt.get(memoryId) as { embedding: string } | undefined;
+      if (!result) return null;
+      return JSON.parse(result.embedding);
+    } else {
+      const stmt = this.db.prepare(`
+        SELECT embedding FROM memory_vectors WHERE memory_id = ?
+      `);
+      const result = stmt.get(memoryId) as { embedding: Buffer } | undefined;
+      if (!result) return null;
+      return this.bufferToFloatArray(result.embedding);
+    }
+  }
+}
+
+export default VectorHelper;
