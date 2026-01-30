@@ -1,0 +1,747 @@
+{
+  "project": "OpenClaw Memory Tiered",
+  "branchName": "ralph/memory-tiered-plugin",
+  "description": "Tiered Local Memory System with Reversible Forgetting - A 4-tier memory system (HOT/WARM/COLD/ARCHIVE) with composite scoring, reversible soft-delete, and fully offline operation using SQLite + FTS5 + sqlite-vec",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Create plugin directory structure and package.json",
+      "description": "As a developer, I need the plugin scaffolding so I can build the memory-tiered extension.",
+      "acceptanceCriteria": [
+        "Create extensions/memory-tiered/ directory",
+        "Create package.json with name @openclaw/memory-tiered, type module, main index.js",
+        "Add openclaw.extensions: [\"memory\"] to package.json",
+        "Create empty index.ts as plugin entry point",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Define TypeScript types for tiered memory",
+      "description": "As a developer, I need type definitions for memories, tiers, and scoring.",
+      "acceptanceCriteria": [
+        "Create core/types.ts with Memory interface (id, text, importance, category, created_at, tier, memory_type, do_not_inject, pinned, use_count, last_accessed_at, use_days, source, parent_id)",
+        "Define Tier enum: HOT, WARM, COLD, ARCHIVE",
+        "Define MemoryType enum: procedural, factual, project, episodic",
+        "Define CurrentContext interface (id, text, created_at, ttl_seconds)",
+        "Define MemoryAudit interface (id, memory_id, action, old_value, new_value, created_at)",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Create SQLite database wrapper with schema",
+      "description": "As a developer, I need SQLite database connection and schema creation.",
+      "acceptanceCriteria": [
+        "Create db/sqlite.ts with Database class",
+        "Create memories table with all columns from spec (id TEXT PK, text, importance, category, created_at, tier, memory_type, do_not_inject, pinned, use_count, last_accessed_at, use_days, source, parent_id, entity_refs, meta_type)",
+        "Add CHECK constraint on tier (HOT/WARM/COLD/ARCHIVE)",
+        "Create indexes: idx_memories_tier, idx_memories_do_not_inject, idx_memories_pinned, idx_memories_last_accessed",
+        "Create current_context table (id, text, created_at, ttl_seconds)",
+        "Create memory_audit table (id, memory_id, action, old_value, new_value, created_at)",
+        "Enable WAL mode for concurrency",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Add FTS5 full-text search integration",
+      "description": "As a user, I want full-text search on memory content.",
+      "acceptanceCriteria": [
+        "Create db/fts.ts with FTS5 helpers",
+        "Create memories_fts virtual table using FTS5 on text column",
+        "Create INSERT trigger to sync FTS on memory insert",
+        "Create UPDATE trigger to sync FTS on memory update",
+        "Create DELETE trigger to sync FTS on memory delete",
+        "Implement searchFTS(query) returning ranked results with BM25 scores",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Create embedding provider interface",
+      "description": "As a developer, I need an abstraction for embedding providers.",
+      "acceptanceCriteria": [
+        "Create embeddings/provider.ts with EmbeddingProvider interface",
+        "Interface has embed(text: string): Promise<number[]> method",
+        "Interface has embedBatch(texts: string[]): Promise<number[][]> method",
+        "Interface has getDimensions(): number method",
+        "Interface has getModelName(): string method",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Implement local embedding provider",
+      "description": "As a user, I want fully offline embeddings using transformers.js.",
+      "acceptanceCriteria": [
+        "Create embeddings/local.ts implementing EmbeddingProvider",
+        "Use transformers.js or ONNX runtime for local inference",
+        "Support configurable model path via config",
+        "Cache loaded model for performance",
+        "Handle model loading errors gracefully with clear error message",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Implement OpenAI embedding provider",
+      "description": "As a user, I want optional OpenAI embeddings for cloud operation.",
+      "acceptanceCriteria": [
+        "Create embeddings/openai.ts implementing EmbeddingProvider",
+        "Use text-embedding-3-small model by default",
+        "Require apiKey from config",
+        "Handle API errors with clear messages",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Add sqlite-vec vector search with fallback",
+      "description": "As a user, I want vector similarity search for semantic matching.",
+      "acceptanceCriteria": [
+        "Create db/vectors.ts for vector operations",
+        "Try loading sqlite-vec extension with try/catch",
+        "Create vec0 virtual table for embeddings when extension available",
+        "Implement vectorSearch(embedding, limit) using sqlite-vec",
+        "Implement in-process cosine similarity fallback when sqlite-vec unavailable",
+        "Log warning when falling back to cosine",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Implement hybrid search combining FTS and vectors",
+      "description": "As a user, I want search combining text and semantic matching.",
+      "acceptanceCriteria": [
+        "Add hybridSearch(query, embedding, options) to db/vectors.ts",
+        "Combine FTS5 BM25 scores with vector similarity",
+        "Configurable weights: vector (0.7), text (0.3) by default",
+        "Return merged, deduplicated results sorted by combined score",
+        "Search completes in <100ms for 10k memories",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Create MemoryScorer class with composite scoring",
+      "description": "As a user, I want memories ranked by relevance, recency, and usage.",
+      "acceptanceCriteria": [
+        "Create core/scorer.ts with MemoryScorer class",
+        "Implement formula: score = w_sim * similarity + w_rec * exp(-effective_age / half_life) + w_freq * log(1 + use_count)",
+        "effective_age = now - max(created_at, last_accessed_at)",
+        "Half-lives: procedural (180d), factual (90d), project (45d), episodic (10d), pinned (Infinity)",
+        "Default weights: similarity (0.5), recency (0.3), frequency (0.2)",
+        "Tier adjustments: COLD recency * 0.5, ARCHIVE score = 0",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Implement tier budget injection allocation",
+      "description": "As a user, I want HOT/WARM memories prioritized in context injection.",
+      "acceptanceCriteria": [
+        "Create core/injection.ts with TierBudgetAllocator class",
+        "Configurable maxItems (default 20)",
+        "Budget percentages: pinned (25%), HOT (45%), WARM (25%), COLD (5%)",
+        "ARCHIVE never auto-injected",
+        "Exclude do_not_inject = true memories",
+        "Fill buckets by score within tier",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Create plugin config schema",
+      "description": "As a user, I want to configure the plugin settings.",
+      "acceptanceCriteria": [
+        "Create config.ts with Zod schema for all config options",
+        "embedding.provider: local | openai | gemini | auto",
+        "embedding.apiKey, embedding.model, embedding.local.modelPath",
+        "dbPath (default ~/.openclaw/memory/tiered.db)",
+        "autoCapture, autoRecall booleans",
+        "tiers.hot.ttlHours, tiers.warm.demotionDays, tiers.cold.promotionUses/Days",
+        "scoring.similarity/recency/frequency weights",
+        "injection.maxItems, injection.budgets object",
+        "decay.intervalHours, context.ttlHours",
+        "Add uiHints for all fields",
+        "Typecheck passes"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Implement memory_store tool",
+      "description": "As an agent, I want to store new memories.",
+      "acceptanceCriteria": [
+        "Create tools/memory_store.ts",
+        "Parameters: text (required), tier (optional HOT/WARM), memory_type, importance, pinned",
+        "Generate UUID for id",
+        "Check duplicates (similarity > 0.95) and return existing ID if found",
+        "Generate embedding and store in vec table",
+        "Return created memory details or duplicate warning",
+        "Return format: { content: [{ type: 'text', text: '...' }], details: {...} }",
+        "Typecheck passes"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Implement memory_recall tool",
+      "description": "As an agent, I want to search and retrieve memories.",
+      "acceptanceCriteria": [
+        "Create tools/memory_recall.ts",
+        "Parameters: query (required), limit (default 5), tier filter, includeArchive, includeForgotten",
+        "Use hybrid search (FTS + vector)",
+        "Apply MemoryScorer ranking",
+        "Update last_accessed_at and use_count on retrieved memories",
+        "Track distinct days in use_days JSON array",
+        "Return list with id, text, tier, memory_type, score, pinned, forgotten flags",
+        "Typecheck passes"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "Implement memory_forget tool",
+      "description": "As a user, I want to forget memories without permanent deletion.",
+      "acceptanceCriteria": [
+        "Create tools/memory_forget.ts",
+        "Parameters: query OR memoryId, hard (for permanent deletion)",
+        "Soft forget: set do_not_inject = true",
+        "Hard delete requires explicit hard=true parameter",
+        "Create audit log entry with action='forget'",
+        "Return confirmation with restorable flag",
+        "Typecheck passes"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-016",
+      "title": "Implement memory_restore tool",
+      "description": "As a user, I want to restore forgotten memories.",
+      "acceptanceCriteria": [
+        "Create tools/memory_restore.ts",
+        "Parameters: memoryId (required)",
+        "Clear do_not_inject flag (set to 0)",
+        "Create audit log entry with action='restore'",
+        "Error if memory not found",
+        "Error if memory not forgotten (do_not_inject already 0)",
+        "Return confirmation",
+        "Typecheck passes"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-017",
+      "title": "Implement memory_pin and memory_unpin tools",
+      "description": "As a user, I want to pin important memories to bypass decay.",
+      "acceptanceCriteria": [
+        "Create tools/memory_pin.ts and tools/memory_unpin.ts",
+        "Pin sets pinned = true, defaults tier to WARM if not set",
+        "Unpin sets pinned = false",
+        "Create audit log entries",
+        "Error if memory not found",
+        "Return confirmation",
+        "Typecheck passes"
+      ],
+      "priority": 17,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-018",
+      "title": "Implement memory_explain tool",
+      "description": "As a user, I want to understand how a memory is scored.",
+      "acceptanceCriteria": [
+        "Create tools/memory_explain.ts",
+        "Parameters: memoryId (required), query (optional for similarity calc)",
+        "Return full text, tier, memory_type",
+        "Return timestamps (created_at, last_accessed_at) and effective age",
+        "Return use_count and use_days array",
+        "Return scoring breakdown: similarity component, recency component, frequency component, total score",
+        "Return injection eligibility with reason (pinned, do_not_inject, tier)",
+        "Typecheck passes"
+      ],
+      "priority": 18,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-019",
+      "title": "Implement current context tools",
+      "description": "As a user, I want to set/clear active task context.",
+      "acceptanceCriteria": [
+        "Create tools/memory_set_context.ts with parameters: text (required), ttlHours (default 4)",
+        "Create tools/memory_clear_context.ts",
+        "Set context: upsert to current_context table with id='active'",
+        "Clear context: delete from current_context where id='active'",
+        "Lazy TTL expiry check on retrieval",
+        "Return confirmation with expiry timestamp",
+        "Typecheck passes"
+      ],
+      "priority": 19,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-020",
+      "title": "Implement before_agent_start hook for auto-recall",
+      "description": "As a user, I want relevant memories automatically injected.",
+      "acceptanceCriteria": [
+        "Create hooks/auto_recall.ts",
+        "Register before_agent_start hook",
+        "Extract key terms from prompt",
+        "Run hybrid search with extracted terms",
+        "Apply MemoryScorer and tier budgets",
+        "Update access stats on selected memories",
+        "Always include current context if not expired",
+        "Format as <relevant-memories>...</relevant-memories>",
+        "Return { prependContext: formattedMemories }",
+        "Respect autoRecall config (default true)",
+        "Typecheck passes"
+      ],
+      "priority": 20,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-021",
+      "title": "Implement agent_end hook for auto-capture",
+      "description": "As a user, I want important info auto-captured from conversations.",
+      "acceptanceCriteria": [
+        "Create hooks/auto_capture.ts",
+        "Register agent_end hook",
+        "Extract capturable text (length 10-500 chars)",
+        "Detect memory_type from content patterns",
+        "Store with tier='HOT', source='auto-capture'",
+        "Check duplicates (similarity > 0.95), skip if exists",
+        "Limit 3 captures per conversation",
+        "Respect autoCapture config (default true)",
+        "Typecheck passes"
+      ],
+      "priority": 21,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-022",
+      "title": "Create plugin entry point with tool registration",
+      "description": "As a developer, I need the plugin to register with OpenClaw.",
+      "acceptanceCriteria": [
+        "Update index.ts with default export plugin object",
+        "Set id='memory-tiered', name='Memory (Tiered)', kind='memory'",
+        "Export configSchema with parse() and uiHints",
+        "In register(), initialize database and embedding provider",
+        "Register all 9 tools via api.registerTool()",
+        "Register both hooks via api.on()",
+        "Typecheck passes"
+      ],
+      "priority": 22,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-023",
+      "title": "Implement CLI search command",
+      "description": "As a user, I want to search memories from CLI.",
+      "acceptanceCriteria": [
+        "Create cli/search.ts",
+        "Command: openclaw memory search <query>",
+        "Options: --deep (includes ARCHIVE), --tier <tier>, --limit <n> (default 10)",
+        "Output: id, text (truncated), tier, score, [PINNED], [FORGOTTEN] tags",
+        "--json for JSON output",
+        "--explain for scoring breakdown",
+        "Typecheck passes"
+      ],
+      "priority": 23,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-024",
+      "title": "Implement CLI list command",
+      "description": "As a user, I want to list memories by tier.",
+      "acceptanceCriteria": [
+        "Create cli/list.ts",
+        "Command: openclaw memory list (shows counts by tier)",
+        "Options: --tier <tier>, --forgotten, --pinned",
+        "--sort <field> (created_at, last_accessed_at, use_count)",
+        "Typecheck passes"
+      ],
+      "priority": 24,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-025",
+      "title": "Implement CLI stats command",
+      "description": "As a user, I want memory statistics.",
+      "acceptanceCriteria": [
+        "Create cli/stats.ts",
+        "Command: openclaw memory stats",
+        "Show totals by tier (HOT, WARM, COLD, ARCHIVE)",
+        "Show forgotten/pinned counts",
+        "Show memory types distribution",
+        "Show DB file size",
+        "Show current context status (active/expired/none)",
+        "Show embedding provider/model",
+        "Show last decay run timestamp",
+        "Typecheck passes"
+      ],
+      "priority": 25,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-026",
+      "title": "Implement CLI forget/restore/pin/unpin commands",
+      "description": "As a user, I want to manage memory state from CLI.",
+      "acceptanceCriteria": [
+        "Create cli/forget.ts: memory forget <id|query> with --hard --confirm flags",
+        "Create cli/restore.ts: memory restore <id>",
+        "Create cli/pin.ts: memory pin <id>",
+        "Create cli/unpin.ts: memory unpin <id>",
+        "All commands show confirmation and result",
+        "Typecheck passes"
+      ],
+      "priority": 26,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-027",
+      "title": "Implement CLI explain command",
+      "description": "As a user, I want to understand memory scoring from CLI.",
+      "acceptanceCriteria": [
+        "Create cli/explain.ts",
+        "Command: openclaw memory explain <id>",
+        "Option: --query <query> for similarity calculation",
+        "Show full text, tier, memory_type",
+        "Show timestamps and effective age",
+        "Show use_count and use_days",
+        "Show scoring breakdown (similarity, recency, frequency, total)",
+        "Show injection eligibility with reason",
+        "Typecheck passes"
+      ],
+      "priority": 27,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-028",
+      "title": "Implement CLI set-context and clear-context commands",
+      "description": "As a user, I want to manage current context from CLI.",
+      "acceptanceCriteria": [
+        "Create cli/context.ts",
+        "Command: memory set-context <text> with --ttl <hours> option",
+        "Command: memory clear-context",
+        "Show confirmation with expiry time",
+        "Typecheck passes"
+      ],
+      "priority": 28,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-029",
+      "title": "Register CLI commands in plugin",
+      "description": "As a developer, I need CLI commands registered with OpenClaw.",
+      "acceptanceCriteria": [
+        "Update index.ts register() to call api.registerCli()",
+        "Create parent command 'memory' with description",
+        "Add all subcommands: search, list, stats, forget, restore, pin, unpin, explain, set-context, clear-context",
+        "Pass { commands: ['memory'] } as options",
+        "Typecheck passes"
+      ],
+      "priority": 29,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-030",
+      "title": "Implement background decay service",
+      "description": "As a user, I want memories to decay automatically over time.",
+      "acceptanceCriteria": [
+        "Create core/decay.ts with DecayEngine class",
+        "Demote HOT memories past 72hr to COLD",
+        "Demote WARM memories unused > 60 days to COLD",
+        "Skip pinned memories (never decay)",
+        "Create audit log entries for demotions",
+        "Store last_decay_run timestamp in DB meta",
+        "Typecheck passes"
+      ],
+      "priority": 30,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-031",
+      "title": "Implement promotion rules",
+      "description": "As a user, I want frequently-used COLD memories promoted.",
+      "acceptanceCriteria": [
+        "Create core/promotion.ts with PromotionEngine class",
+        "Promote COLD memories with >=3 uses over >=2 distinct days to WARM",
+        "Configurable thresholds via config",
+        "Never auto-promote to HOT",
+        "Create audit log entries for promotions",
+        "Typecheck passes"
+      ],
+      "priority": 31,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-032",
+      "title": "Register decay service in plugin",
+      "description": "As a developer, I need the decay service running in background.",
+      "acceptanceCriteria": [
+        "Update index.ts to call api.registerService()",
+        "Service id: 'memory-tiered-decay'",
+        "start() schedules interval based on decay.intervalHours config (default 6)",
+        "Check last_decay_run to avoid duplicate runs",
+        "Run DecayEngine and PromotionEngine on each cycle",
+        "stop() clears interval",
+        "Typecheck passes"
+      ],
+      "priority": 32,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-033",
+      "title": "Add CLI decay run command",
+      "description": "As a user, I want to manually trigger decay.",
+      "acceptanceCriteria": [
+        "Add to cli/decay.ts: memory decay run",
+        "Run DecayEngine and PromotionEngine immediately",
+        "Show count of demoted and promoted memories",
+        "Update last_decay_run timestamp",
+        "Typecheck passes"
+      ],
+      "priority": 33,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-034",
+      "title": "Implement legacy file indexing",
+      "description": "As a user, I want existing memory files indexed.",
+      "acceptanceCriteria": [
+        "Create migration/file_indexer.ts",
+        "Detect MEMORY.md in project root, index chunks as WARM tier",
+        "Detect memory/*.md files, index chunks as HOT tier",
+        "Chunk files by paragraphs/sections",
+        "Generate embeddings for each chunk",
+        "Track file hash in DB to skip already-indexed files",
+        "Set source='file:{path}' for provenance",
+        "Typecheck passes"
+      ],
+      "priority": 34,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-035",
+      "title": "Add CLI index command",
+      "description": "As a user, I want to trigger file indexing from CLI.",
+      "acceptanceCriteria": [
+        "Create cli/index.ts: memory index",
+        "Option: --force to re-index all files (ignore hash)",
+        "Show progress (files found, chunks created)",
+        "Show skip count for already-indexed files",
+        "Typecheck passes"
+      ],
+      "priority": 35,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-036",
+      "title": "Implement LanceDB migration command",
+      "description": "As existing user, I want to migrate my LanceDB data.",
+      "acceptanceCriteria": [
+        "Create migration/lancedb.ts",
+        "Detect LanceDB at ~/.openclaw/memory/lancedb",
+        "Export entries with existing vectors",
+        "Import as WARM tier, source='legacy'",
+        "CLI: memory migrate --from lancedb",
+        "Option: --preview shows plan without executing",
+        "Option: --rollback restores original LanceDB (backup created before migration)",
+        "Show progress bar for large migrations",
+        "Typecheck passes"
+      ],
+      "priority": 36,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-037",
+      "title": "Add Phase 2 extension point interfaces",
+      "description": "As a developer, I want extension points documented for Phase 2.",
+      "acceptanceCriteria": [
+        "Add entity_refs and meta_type nullable columns (already in schema)",
+        "Create core/extensions.ts with interfaces:",
+        "EntityExtractor interface with extract(text): Entity[] method",
+        "MemoryCompactor interface with compact(memories): Memory method",
+        "SemanticDeduplicator interface with findDuplicates(memory): Memory[] method",
+        "Add JSDoc comments explaining Phase 2 intent for each interface",
+        "Typecheck passes"
+      ],
+      "priority": 37,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-038",
+      "title": "Add comprehensive error handling",
+      "description": "As a user, I want clear error messages for all failure cases.",
+      "acceptanceCriteria": [
+        "Handle 'Memory not found: {id}' error",
+        "Handle 'Invalid memory ID format' for non-UUID ids",
+        "Handle 'Similar memory exists: {id}' for duplicates",
+        "Handle 'Already forgotten' for double-forget",
+        "Handle 'Not forgotten' for restoring non-forgotten memory",
+        "Handle DB locked with retry (3 attempts with backoff)",
+        "Handle embedding provider unavailable with config suggestion",
+        "All errors include actionable guidance",
+        "Typecheck passes"
+      ],
+      "priority": 38,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-039",
+      "title": "Add unit tests for MemoryScorer",
+      "description": "As a developer, I need tests verifying the scoring formula.",
+      "acceptanceCriteria": [
+        "Create __tests__/scorer.test.ts",
+        "Test similarity component calculation",
+        "Test recency component with different ages and half-lives",
+        "Test frequency component with different use_counts",
+        "Test tier adjustments (COLD 0.5x recency, ARCHIVE 0)",
+        "Test pinned memories (infinite half-life)",
+        "Test combined score calculation",
+        "Tests pass"
+      ],
+      "priority": 39,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-040",
+      "title": "Add unit tests for tier budget allocation",
+      "description": "As a developer, I need tests verifying budget allocation.",
+      "acceptanceCriteria": [
+        "Create __tests__/injection.test.ts",
+        "Test default budgets (25% pinned, 45% HOT, 25% WARM, 5% COLD)",
+        "Test ARCHIVE exclusion",
+        "Test do_not_inject exclusion",
+        "Test bucket filling by score within tier",
+        "Test maxItems limit",
+        "Tests pass"
+      ],
+      "priority": 40,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-041",
+      "title": "Add unit tests for database operations",
+      "description": "As a developer, I need tests for schema and CRUD operations.",
+      "acceptanceCriteria": [
+        "Create __tests__/sqlite.test.ts",
+        "Test schema creation with all tables and indexes",
+        "Test memory CRUD operations",
+        "Test FTS5 sync triggers",
+        "Test current_context operations with TTL",
+        "Test audit log creation",
+        "Tests pass"
+      ],
+      "priority": 41,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-042",
+      "title": "Add unit tests for search operations",
+      "description": "As a developer, I need tests for FTS and vector search.",
+      "acceptanceCriteria": [
+        "Create __tests__/search.test.ts",
+        "Test FTS5 search with BM25 ranking",
+        "Test vector search (when sqlite-vec available)",
+        "Test cosine fallback (mock sqlite-vec unavailable)",
+        "Test hybrid search combining FTS and vector",
+        "Test search completes in <100ms for 10k memories (performance test)",
+        "Tests pass"
+      ],
+      "priority": 42,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-043",
+      "title": "Add integration tests for tools",
+      "description": "As a developer, I need tests for all memory tools.",
+      "acceptanceCriteria": [
+        "Create __tests__/tools.test.ts",
+        "Test memory_store creates memory and returns details",
+        "Test memory_store detects duplicates",
+        "Test memory_recall searches and updates stats",
+        "Test memory_forget sets do_not_inject",
+        "Test memory_restore clears do_not_inject",
+        "Test memory_pin/unpin toggle pinned flag",
+        "Test memory_explain returns scoring breakdown",
+        "Test memory_set_context/clear_context",
+        "Tests pass"
+      ],
+      "priority": 43,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}
