@@ -24,6 +24,25 @@
 - OpenAI embeddings API may return results out of order; sort by index field
 - Provide specific error guidance based on HTTP status (401=auth, 429=rate limit, 400=bad input)
 
+- sqlite-vec uses vec0 virtual table with FLOAT[N] column type for embeddings
+- When sqlite-vec unavailable, store embeddings as BLOBs (Float32Array buffer)
+- Cosine similarity: dot(a,b) / (||a|| * ||b||), clamp result to [0,1] for floating point safety
+- Convert Buffer to Float32Array using buffer.buffer, buffer.byteOffset, buffer.byteLength/4
+
+---
+
+## 2026-01-31 - US-008
+- What was implemented: Created VectorHelper for sqlite-vec vector search with cosine fallback
+- Files changed:
+  - extensions/memory-tiered/db/vectors.ts (new)
+- **Learnings for future iterations:**
+  - sqlite-vec extension loaded via db.loadExtension(); try multiple paths (vec0, sqlite-vec)
+  - vec0 virtual table: CREATE VIRTUAL TABLE name USING vec0(id TEXT PK, embedding FLOAT[N])
+  - sqlite-vec provides vec_distance_cosine() function; convert to similarity with 1 - distance
+  - For fallback, store embeddings as Buffers from Float32Array
+  - Buffer.from(new Float32Array(embedding).buffer) creates blob for storage
+  - VectorSearchResult includes id, text, similarity (0-1 score)
+  - Fallback loads all embeddings and computes similarity in-memory (O(n) for each search)
 ---
 
 ## 2026-01-31 - US-007
