@@ -1,3 +1,24 @@
 # Ralph Progress Log
 Started: Sat 31 Jan 00:37:24 CET 2026
 ---
+
+## Codebase Patterns
+- Plugin directory structure: extensions/<plugin-name>/ with package.json, index.ts, tsconfig.json
+- All source files use ESM modules (type: "module" in package.json)
+- OpenClaw plugin registration: set openclaw.extensions array in package.json
+- TypeScript config: ES2022 target with NodeNext module resolution
+
+---
+
+## 2026-01-31 - US-001
+- What was implemented: Created plugin directory structure and scaffolding
+- Files changed:
+  - extensions/memory-tiered/package.json (new - plugin manifest)
+  - extensions/memory-tiered/index.ts (new - entry point)
+  - extensions/memory-tiered/tsconfig.json (new - TypeScript config)
+- **Learnings for future iterations:**
+  - The plugin uses @openclaw/memory-tiered as its package name
+  - Entry point is index.ts which compiles to index.js (main field)
+  - OpenClaw extensions registration uses the openclaw.extensions field in package.json
+  - TypeScript is a dev dependency only - runtime uses compiled JS
+---
