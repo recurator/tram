@@ -1,0 +1,18 @@
+## Codebase Patterns
+- Use TypeScript enums with string values for database column values (e.g., Tier.HOT = "HOT")
+- Use ISO 8601 date strings for all timestamp fields
+- Use JSDoc comments on interfaces and enums to document purpose and half-lives
+- JSON arrays stored as strings in SQLite (e.g., use_days)
+
+---
+
+## 2026-01-31 - US-002
+- What was implemented: Created core/types.ts with all type definitions for the tiered memory system
+- Files changed:
+  - extensions/memory-tiered/core/types.ts (new)
+- **Learnings for future iterations:**
+  - The project uses TypeScript with strict mode and NodeNext module resolution
+  - Tier enum values should match the CHECK constraint in the future SQLite schema
+  - MemoryType affects decay half-life: procedural (180d), factual (90d), project (45d), episodic (10d)
+  - use_days is a string[] (JSON array) stored as string in SQLite for tracking distinct access days
+---
