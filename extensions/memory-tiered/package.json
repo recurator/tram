@@ -1,0 +1,26 @@
+{
+  "name": "@openclaw/memory-tiered",
+  "version": "0.0.1",
+  "description": "Tiered Local Memory System with Reversible Forgetting for OpenClaw",
+  "type": "module",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "openclaw": {
+    "extensions": ["memory"]
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "openclaw",
+    "memory",
+    "tiered",
+    "sqlite",
+    "embeddings"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.3.0"
+  }
+}
