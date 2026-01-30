@@ -14,6 +14,27 @@
 - Cache prepared statements for performance (e.g., searchStmt in FTS5Helper)
 - Handle FTS5 query syntax errors by falling back to phrase search with escaped quotes
 
+- @xenova/transformers provides fully offline embedding inference via ONNX runtime
+- Cache model pipelines after first load (use initPromise pattern to prevent concurrent initialization)
+- Use mean pooling + normalization for sentence embeddings
+- Common model dimensions: MiniLM = 384, mpnet/gte-base/e5-base = 768
+
+---
+
+## 2026-01-31 - US-006
+- What was implemented: Created LocalEmbeddingProvider using @xenova/transformers for offline embeddings
+- Files changed:
+  - extensions/memory-tiered/embeddings/local.ts (new)
+  - extensions/memory-tiered/package.json (added @xenova/transformers dependency)
+  - extensions/memory-tiered/package-lock.json (updated)
+- **Learnings for future iterations:**
+  - @xenova/transformers includes TypeScript types; no separate @types package needed
+  - Use dynamic import for @xenova/transformers to avoid loading at module initialization
+  - pipeline("feature-extraction", modelPath) creates embedding pipeline
+  - Output needs { pooling: "mean", normalize: true } for sentence embeddings
+  - Batch embeddings return flat Float32Array; slice by dimensions for each input
+  - Model dimensions map: MODEL_DIMENSIONS[modelPath] for known models
+  - Error messages should include actionable guidance (e.g., npm install suggestion)
 ---
 
 ## 2026-01-31 - US-005
