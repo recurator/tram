@@ -31,6 +31,20 @@
 
 ---
 
+## 2026-01-31 - US-009
+- What was implemented: Added hybridSearch function to VectorHelper combining FTS and vector search
+- Files changed:
+  - extensions/memory-tiered/db/vectors.ts (updated)
+- **Learnings for future iterations:**
+  - hybridSearch imports FTS5Helper and can accept it via constructor or setFtsHelper() for sharing
+  - Hybrid search fetches 3x candidates (min 30) from both sources, then merges
+  - BM25 scores normalized to 0-1 by dividing by max score (avoids negative handling)
+  - Default weights: vector (0.7), text (0.3) - vector similarity has higher weight
+  - Combined score = vectorWeight * vectorScore + textWeight * textScore
+  - Results include both component scores for explainability
+  - Deduplication via Set of IDs from union of both result sets
+---
+
 ## 2026-01-31 - US-008
 - What was implemented: Created VectorHelper for sqlite-vec vector search with cosine fallback
 - Files changed:

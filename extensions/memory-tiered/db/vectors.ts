@@ -4,6 +4,7 @@
  */
 
 import type { Database as SqliteDb, Statement } from "better-sqlite3";
+import { FTS5Helper, type FTSSearchResult } from "./fts.js";
 
 /**
  * Result from a vector similarity search.
@@ -18,6 +19,34 @@ export interface VectorSearchResult {
 }
 
 /**
+ * Result from a hybrid search combining FTS and vector similarity.
+ */
+export interface HybridSearchResult {
+  /** Memory ID */
+  id: string;
+  /** Memory text content */
+  text: string;
+  /** Combined score (higher is more relevant) */
+  score: number;
+  /** Vector similarity component (0 to 1) */
+  vectorScore: number;
+  /** Text match component (normalized BM25, 0 to 1) */
+  textScore: number;
+}
+
+/**
+ * Options for hybrid search.
+ */
+export interface HybridSearchOptions {
+  /** Maximum number of results (default: 10) */
+  limit?: number;
+  /** Weight for vector similarity (default: 0.7) */
+  vectorWeight?: number;
+  /** Weight for text matching (default: 0.3) */
+  textWeight?: number;
+}
+
+/**
  * Vector search helper class providing semantic similarity search.
  * Attempts to use sqlite-vec extension for efficient search, falling back
  * to in-process cosine similarity when extension is unavailable.
@@ -27,15 +56,18 @@ export class VectorHelper {
   private sqliteVecAvailable: boolean = false;
   private dimensions: number;
   private searchStmt: Statement | null = null;
+  private ftsHelper: FTS5Helper | null = null;
 
   /**
    * Create a new VectorHelper instance.
    * @param db - The better-sqlite3 database instance
    * @param dimensions - The dimensionality of embedding vectors
+   * @param ftsHelper - Optional FTS5Helper for hybrid search (pass existing instance to share)
    */
-  constructor(db: SqliteDb, dimensions: number) {
+  constructor(db: SqliteDb, dimensions: number, ftsHelper?: FTS5Helper) {
     this.db = db;
     this.dimensions = dimensions;
+    this.ftsHelper = ftsHelper ?? null;
     this.initialize();
   }
 
@@ -152,6 +184,101 @@ export class VectorHelper {
     } else {
       return this.vectorSearchCosineFallback(queryEmbedding, limit);
     }
+  }
+
+  /**
+   * Hybrid search combining FTS5 text matching with vector similarity.
+   * @param query - The text query for FTS search
+   * @param queryEmbedding - The query embedding vector for semantic search
+   * @param options - Search options (limit, weights)
+   * @returns Array of hybrid search results sorted by combined score
+   */
+  hybridSearch(
+    query: string,
+    queryEmbedding: number[],
+    options: HybridSearchOptions = {}
+  ): HybridSearchResult[] {
+    const {
+      limit = 10,
+      vectorWeight = 0.7,
+      textWeight = 0.3,
+    } = options;
+
+    // Initialize FTS helper if needed
+    if (!this.ftsHelper) {
+      this.ftsHelper = new FTS5Helper(this.db);
+    }
+
+    // Run both searches in parallel (not truly parallel, but batched)
+    // Fetch more candidates than limit to ensure good coverage after merge
+    const candidateLimit = Math.max(limit * 3, 30);
+
+    // Get FTS results
+    const ftsResults = this.ftsHelper.searchFTS(query, candidateLimit);
+
+    // Get vector results
+    const vectorResults = this.vectorSearch(queryEmbedding, candidateLimit);
+
+    // Normalize FTS BM25 scores to 0-1 range
+    // BM25 scores are already positive after negation in FTS5Helper
+    const maxBm25 = Math.max(...ftsResults.map((r) => r.bm25Score), 0.001);
+    const normalizedFts = new Map<string, { text: string; score: number }>();
+    for (const result of ftsResults) {
+      normalizedFts.set(result.id, {
+        text: result.text,
+        score: result.bm25Score / maxBm25,
+      });
+    }
+
+    // Vector scores are already 0-1 (cosine similarity)
+    const vectorMap = new Map<string, { text: string; score: number }>();
+    for (const result of vectorResults) {
+      vectorMap.set(result.id, {
+        text: result.text,
+        score: result.similarity,
+      });
+    }
+
+    // Merge results - union of both result sets
+    const allIds = new Set([...normalizedFts.keys(), ...vectorMap.keys()]);
+    const hybridResults: HybridSearchResult[] = [];
+
+    for (const id of allIds) {
+      const ftsEntry = normalizedFts.get(id);
+      const vectorEntry = vectorMap.get(id);
+
+      // Use text from whichever source has it
+      const text = ftsEntry?.text ?? vectorEntry?.text ?? "";
+
+      // Get scores (0 if not found in that search)
+      const textScore = ftsEntry?.score ?? 0;
+      const vectorScore = vectorEntry?.score ?? 0;
+
+      // Calculate combined score
+      const score = vectorWeight * vectorScore + textWeight * textScore;
+
+      hybridResults.push({
+        id,
+        text,
+        score,
+        vectorScore,
+        textScore,
+      });
+    }
+
+    // Sort by combined score descending
+    hybridResults.sort((a, b) => b.score - a.score);
+
+    // Return top results up to limit
+    return hybridResults.slice(0, limit);
+  }
+
+  /**
+   * Set the FTS5Helper instance for hybrid search.
+   * Use this to share an FTS5Helper instance across helpers.
+   */
+  setFtsHelper(ftsHelper: FTS5Helper): void {
+    this.ftsHelper = ftsHelper;
   }
 
   /**
