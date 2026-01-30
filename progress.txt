@@ -16,6 +16,17 @@
 
 ---
 
+## 2026-01-31 - US-005
+- What was implemented: Created EmbeddingProvider interface for embedding abstraction
+- Files changed:
+  - extensions/memory-tiered/embeddings/provider.ts (new)
+- **Learnings for future iterations:**
+  - The EmbeddingProvider interface supports both single and batch embedding operations
+  - getDimensions() returns the vector size (e.g., 384 for MiniLM, 1536 for OpenAI)
+  - getModelName() returns the model identifier for logging/debugging
+  - Implementations will need to cache loaded models for performance (US-006)
+---
+
 ## 2026-01-31 - US-004
 - What was implemented: Created FTS5 full-text search integration with BM25 ranking
 - Files changed:
