@@ -9,6 +9,24 @@
 - Use INTEGER for boolean columns (do_not_inject, pinned) with 0/1 values
 - Foreign key constraints supported but need PRAGMA foreign_keys = ON for enforcement
 
+- FTS5 uses content='' with content_rowid for external content tables (sync via triggers)
+- BM25 scores in FTS5 are negative; negate for intuitive ranking (higher = more relevant)
+- Cache prepared statements for performance (e.g., searchStmt in FTS5Helper)
+- Handle FTS5 query syntax errors by falling back to phrase search with escaped quotes
+
+---
+
+## 2026-01-31 - US-004
+- What was implemented: Created FTS5 full-text search integration with BM25 ranking
+- Files changed:
+  - extensions/memory-tiered/db/fts.ts (new)
+- **Learnings for future iterations:**
+  - FTS5 virtual table uses `content='memories', content_rowid='rowid'` for external content
+  - Triggers sync INSERT/UPDATE/DELETE from memories table to FTS index
+  - BM25 function returns negative scores; negate them for intuitive "higher is better" ranking
+  - FTS5 query syntax can cause errors with special chars; wrap in quotes as fallback
+  - Prepared statements should be cached for repeated queries (searchStmt pattern)
+  - rebuildIndex() is useful after bulk imports or corruption recovery
 ---
 
 ## 2026-01-31 - US-003
