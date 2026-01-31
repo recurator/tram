@@ -55,6 +55,26 @@
 - TTL stored as seconds in DB (ttl_seconds), but tool accepts ttlHours for UX convenience
 - Context expiry calculated as: createdAt.getTime() + ttl_seconds * 1000
 
+- AutoRecallHook.extractKeyTerms() removes stop words and short tokens for focused search
+- Format injected memories as XML: <relevant-memories><current-context>...</current-context><memory>...</memory></relevant-memories>
+- Hooks receive ResolvedConfig; createAutoRecallHook() factory maps config to AutoRecallConfig
+
+---
+
+## 2026-01-31 - US-020
+- What was implemented: Created AutoRecallHook class for before_agent_start hook with automatic memory injection
+- Files changed:
+  - extensions/memory-tiered/hooks/auto_recall.ts (new)
+- **Learnings for future iterations:**
+  - AutoRecallHook takes db, embeddingProvider, vectorHelper, and optional config as constructor dependencies
+  - execute(prompt) extracts key terms, runs hybrid search, applies tier budget allocation, and formats XML
+  - extractKeyTerms() filters common stop words and short tokens, returns top 20 unique terms
+  - Uses TierBudgetAllocator to respect tier budgets (pinned 25%, HOT 45%, WARM 25%, COLD 5%)
+  - Budgets in config are percentages (0-100); convert to decimals (0-1) when passing to TierBudgetAllocator
+  - Current context always included first in XML output via MemorySetContextTool.getContext()
+  - Returns { prependContext, memoriesInjected, contextIncluded } for hook result
+  - createAutoRecallHook() factory function maps ResolvedConfig to AutoRecallConfig
+  - escapeXml() handles &, <, >, ", ' characters for safe XML embedding
 ---
 
 ## 2026-01-31 - US-019
