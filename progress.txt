@@ -52,6 +52,19 @@
 
 ---
 
+## 2026-01-31 - US-017
+- What was implemented: Created MemoryPinTool and MemoryUnpinTool classes for pinning/unpinning memories
+- Files changed:
+  - extensions/memory-tiered/tools/memory_pin.ts (new)
+  - extensions/memory-tiered/tools/memory_unpin.ts (new)
+- **Learnings for future iterations:**
+  - MemoryPinTool and MemoryUnpinTool only require db as constructor dependency
+  - Pin updates tier to WARM if currently COLD or ARCHIVE (pinned memories should be accessible)
+  - Audit entries include both pinned flag and tier in old_value/new_value for pin action
+  - Already-pinned or not-pinned states throw errors with helpful messages
+  - tierUpdated flag in result indicates if tier was changed during pinning
+---
+
 ## 2026-01-31 - US-014
 - What was implemented: Created MemoryRecallTool class for searching and retrieving memories with hybrid search
 - Files changed:
