@@ -37,6 +37,9 @@ import { MemoryClearContextTool } from "./tools/memory_clear_context.js";
 import { createAutoRecallHook } from "./hooks/auto_recall.js";
 import { createAutoCaptureHook } from "./hooks/auto_capture.js";
 
+import { DecayEngine } from "./core/decay.js";
+import { PromotionEngine } from "./core/promotion.js";
+
 // CLI command imports
 import { MemorySearchCommand } from "./cli/search.js";
 import { MemoryListCommand } from "./cli/list.js";
@@ -75,6 +78,16 @@ export interface CliRegistrationOptions {
 }
 
 /**
+ * Service definition for OpenClaw registration.
+ */
+export interface ServiceDefinition {
+  id: string;
+  description: string;
+  start: () => Promise<void> | void;
+  stop: () => Promise<void> | void;
+}
+
+/**
  * Plugin API interface matching OpenClaw plugin registration requirements.
  * This is a minimal interface for the expected API shape.
  */
@@ -86,6 +99,7 @@ export interface PluginApi {
     subcommands: CliCommandDefinition[],
     options?: CliRegistrationOptions
   ): void;
+  registerService(service: ServiceDefinition): void;
   on(event: string, handler: (...args: unknown[]) => unknown): void;
 }
 
@@ -171,6 +185,74 @@ function createEmbeddingProvider(config: ResolvedConfig): EmbeddingProvider {
   }
 
   throw new Error(`Unknown embedding provider: ${provider}`);
+}
+
+/**
+ * DecayService - Background service for automatic memory tier decay and promotion.
+ *
+ * This service runs the DecayEngine and PromotionEngine on a configurable interval
+ * to automatically demote stale memories and promote frequently-used ones.
+ */
+class DecayService {
+  private db: ReturnType<Database["getDb"]>;
+  private config: ResolvedConfig;
+  private decayEngine: DecayEngine;
+  private promotionEngine: PromotionEngine;
+  private intervalId: ReturnType<typeof setInterval> | null = null;
+  private intervalHours: number;
+
+  /**
+   * Create a new DecayService instance.
+   * @param db - The better-sqlite3 database instance
+   * @param config - Resolved plugin configuration
+   */
+  constructor(db: ReturnType<Database["getDb"]>, config: ResolvedConfig) {
+    this.db = db;
+    this.config = config;
+    this.decayEngine = new DecayEngine(db, config);
+    this.promotionEngine = new PromotionEngine(db, config);
+    this.intervalHours = config.decay.intervalHours;
+  }
+
+  /**
+   * Start the background decay service.
+   * Schedules periodic runs based on config.decay.intervalHours.
+   * Checks last_decay_run to avoid duplicate runs.
+   */
+  start(): void {
+    // Run immediately if enough time has passed since last run
+    if (this.decayEngine.shouldRun(this.intervalHours)) {
+      this.runCycle();
+    }
+
+    // Schedule periodic runs
+    const intervalMs = this.intervalHours * 60 * 60 * 1000;
+    this.intervalId = setInterval(() => {
+      this.runCycle();
+    }, intervalMs);
+  }
+
+  /**
+   * Stop the background decay service.
+   * Clears the scheduled interval.
+   */
+  stop(): void {
+    if (this.intervalId !== null) {
+      clearInterval(this.intervalId);
+      this.intervalId = null;
+    }
+  }
+
+  /**
+   * Run one cycle of decay and promotion.
+   * Called on each interval tick.
+   */
+  private runCycle(): void {
+    // Run decay engine first (demote stale memories)
+    this.decayEngine.run();
+    // Then run promotion engine (promote frequently-used memories)
+    this.promotionEngine.run();
+  }
 }
 
 /**
@@ -723,6 +805,15 @@ const plugin: Plugin = {
       ],
       { commands: ["memory"] }
     );
+
+    // Create and register the decay service
+    const decayService = new DecayService(db, config);
+    api.registerService({
+      id: "memory-tiered-decay",
+      description: "Background service for automatic memory tier decay and promotion",
+      start: () => decayService.start(),
+      stop: () => decayService.stop(),
+    });
   },
 };
 
