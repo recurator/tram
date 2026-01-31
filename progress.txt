@@ -245,3 +245,17 @@
   - MemoryForgetResult includes restorable flag (true for soft forget, false for hard delete)
   - Already-forgotten memories throw error to prevent double-forget; suggest hard=true
 ---
+
+## 2026-01-31 - US-016
+- What was implemented: Created MemoryRestoreTool class for restoring forgotten memories
+- Files changed:
+  - extensions/memory-tiered/tools/memory_restore.ts (new)
+- **Learnings for future iterations:**
+  - MemoryRestoreTool only requires db as constructor dependency (no embedding/vector needed)
+  - execute() takes memoryId (required) and validates UUID format
+  - Restoring sets do_not_inject = 0 (was 1 when forgotten)
+  - Creates audit entry with action='restore' and old/new JSON values for do_not_inject
+  - Errors: "Memory not found: {id}" and "Memory is not forgotten: {id}"
+  - MemoryRestoreResult includes tier in details (useful for UI feedback)
+  - execute() is async to match pattern of other tools, though operations are synchronous
+---
