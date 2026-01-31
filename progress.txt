@@ -419,3 +419,21 @@
   - formatTextOutput() builds multi-section output with headers, bar charts, and labeled fields
   - ASCII bar chart uses █ character with Math.ceil(percentage / 5) for consistent scaling
 ---
+
+## 2026-01-31 - US-026
+- What was implemented: Created CLI commands for forget, restore, pin, and unpin memory management
+- Files changed:
+  - extensions/memory-tiered/cli/forget.ts (new)
+  - extensions/memory-tiered/cli/restore.ts (new)
+  - extensions/memory-tiered/cli/pin.ts (new)
+  - extensions/memory-tiered/cli/unpin.ts (new)
+- **Learnings for future iterations:**
+  - CLI commands wrap tool classes (e.g., MemoryForgetCommand uses MemoryForgetTool internally)
+  - ForgetCommand supports both UUID and query-based lookup via UUID_REGEX detection
+  - Hard delete requires --confirm flag for safety; throws error if not confirmed
+  - ForgetOptions, RestoreOptions, PinOptions, UnpinOptions follow same pattern: json optional flag
+  - CommandResult interfaces include action, memoryId, text, and success message
+  - formatTextOutput() creates consistent multi-line output with headers and labeled fields
+  - All commands validate input before delegating to underlying tools
+  - RestoreCommand, PinCommand, UnpinCommand only require db (no embedding/vector dependencies)
+---
