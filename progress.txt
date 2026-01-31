@@ -52,6 +52,20 @@
 
 ---
 
+## 2026-01-31 - US-018
+- What was implemented: Created MemoryExplainTool class for explaining memory scoring and injection eligibility
+- Files changed:
+  - extensions/memory-tiered/tools/memory_explain.ts (new)
+- **Learnings for future iterations:**
+  - MemoryExplainTool takes db, optional embeddingProvider, optional vectorHelper, and optional scorer
+  - execute() returns MemoryExplainResult with content array and details object
+  - Scoring explanation includes similarityValue (raw 0-1), weighted components, and totalScore
+  - Injection eligibility includes: eligible (bool), reason (string), isPinned, isForgotten, tier
+  - Uses vectorHelper.vectorSearch() with limit 100 to find memory's similarity for query
+  - formatExplanationText() builds human-readable multi-line explanation string
+  - Imports HALF_LIVES from scorer.ts for displaying memory type half-life in output
+---
+
 ## 2026-01-31 - US-017
 - What was implemented: Created MemoryPinTool and MemoryUnpinTool classes for pinning/unpinning memories
 - Files changed:
