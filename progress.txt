@@ -452,3 +452,19 @@
   - Query displayed in scoring section when provided (shows what was used for similarity)
   - Reuses UUID_REGEX for ID validation consistency across CLI commands
 ---
+
+## 2026-01-31 - US-028
+- What was implemented: Created MemorySetContextCommand and MemoryClearContextCommand for CLI context management
+- Files changed:
+  - extensions/memory-tiered/cli/context.ts (new)
+- **Learnings for future iterations:**
+  - CLI context commands wrap MemorySetContextTool and MemoryClearContextTool for CLI usage
+  - SetContextOptions has ttl (number of hours) and json (output format) options
+  - ClearContextOptions has only json (output format) option
+  - SetContextCommandResult includes ttlHours (calculated from ttlSeconds/3600) for human-friendly display
+  - ClearContextCommandResult includes previousText (truncated) when context was actually cleared
+  - truncateText() helper converts multiline text to single line and limits to 80 chars with ellipsis
+  - Both commands validate input before delegating to underlying tools
+  - formatSetContextOutput() shows text, TTL, and expiry timestamp
+  - formatClearContextOutput() shows previous text when cleared, or simple message otherwise
+---
