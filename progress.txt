@@ -545,3 +545,22 @@
   - Decay command registered after clear-context in the subcommands array
   - Both DecayEngine and PromotionEngine can be instantiated independently from DecayService for CLI use
 ---
+
+## 2026-01-31 - US-034
+- What was implemented: Created FileIndexer class for migrating existing MEMORY.md and memory/*.md files into the tiered memory system
+- Files changed:
+  - extensions/memory-tiered/migration/file_indexer.ts (new)
+- **Learnings for future iterations:**
+  - FileIndexer takes db, embeddingProvider, vectorHelper, and optional projectRoot as constructor dependencies
+  - File hashes tracked in file_hashes table (file_path, hash, indexed_at, chunk_count) to skip already-indexed files
+  - MEMORY.md in project root is indexed as WARM tier; memory/*.md files are indexed as HOT tier
+  - chunkContent() splits by markdown headers (##, ###, etc.) first, then by paragraphs (double newlines)
+  - Large paragraphs split by sentence boundaries, then word boundaries if still too large
+  - minChunkSize (default 50) and maxChunkSize (default 1000) control chunk sizing
+  - embedBatch() used for efficiency when indexing multiple chunks from a file
+  - isDuplicate() checks for similarity >= 0.95 before storing each chunk
+  - source field set to `file:{relative_path}` for provenance tracking
+  - detectMemoryType() uses pattern matching for procedural/project/episodic/factual classification
+  - indexAll() returns IndexingResult with filesFound, filesIndexed, filesSkipped, chunksCreated, and per-file details
+  - Force option bypasses hash check for re-indexing all files
+---
