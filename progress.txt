@@ -55,10 +55,31 @@
 - TTL stored as seconds in DB (ttl_seconds), but tool accepts ttlHours for UX convenience
 - Context expiry calculated as: createdAt.getTime() + ttl_seconds * 1000
 
+- AutoCaptureHook captures important text from agent responses into memories
+- Memory type detection uses regex patterns: procedural, project, episodic, factual (default)
+- Importance scoring factors: pattern matches, code snippets (`...`), importance keywords, list structure
+- DUPLICATE_THRESHOLD = 0.95 applies to auto-capture (same as memory_store tool)
+
 - AutoRecallHook.extractKeyTerms() removes stop words and short tokens for focused search
 - Format injected memories as XML: <relevant-memories><current-context>...</current-context><memory>...</memory></relevant-memories>
 - Hooks receive ResolvedConfig; createAutoRecallHook() factory maps config to AutoRecallConfig
 
+---
+
+## 2026-01-31 - US-021
+- What was implemented: Created AutoCaptureHook class for agent_end hook with automatic memory capture
+- Files changed:
+  - extensions/memory-tiered/hooks/auto_capture.ts (new)
+- **Learnings for future iterations:**
+  - AutoCaptureHook takes db, embeddingProvider, vectorHelper, and optional config as constructor dependencies
+  - execute(response) extracts capturable candidates, checks duplicates, and stores as memories
+  - extractCapturableCandidates() splits by paragraphs, filters by length (10-500 chars), extracts sentences if too long
+  - detectMemoryType() uses MEMORY_TYPE_PATTERNS with regex matching for procedural/project/episodic/factual
+  - Importance score includes: pattern match ratio, length ratio, code snippets, importance keywords, list structure
+  - maxCapturesPerConversation = 3 by default; processes top-scored candidates first
+  - Duplicate detection: isDuplicate() checks vectorSearch for similarity >= 0.95
+  - All captured memories stored as tier='HOT', source='auto-capture', importance=0.5
+  - createAutoCaptureHook() factory function maps ResolvedConfig to AutoCaptureConfig
 ---
 
 ## 2026-01-31 - US-020
