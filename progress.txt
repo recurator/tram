@@ -530,3 +530,18 @@
   - Service is registered last in register() after all tools, hooks, and CLI commands
   - intervalMs calculated from config.decay.intervalHours (default 6 hours)
 ---
+
+## 2026-01-31 - US-033
+- What was implemented: Created MemoryDecayCommand class for CLI manual decay trigger with run subcommand
+- Files changed:
+  - extensions/memory-tiered/cli/decay.ts (new)
+  - extensions/memory-tiered/index.ts (updated)
+- **Learnings for future iterations:**
+  - MemoryDecayCommand wraps DecayEngine and PromotionEngine for manual triggering
+  - DecayRunCommandResult includes both decay and promotion results with totalDemoted/totalPromoted summary
+  - CLI subcommand uses argument for action ("run") with validation for unknown actions
+  - DecayEngine.run() internally calls setLastDecayRun() so no separate timestamp update needed in command
+  - formatTextOutput() uses multi-section display: Demotions (HOT/WARM breakdown), Promotions, Processing counts, Timestamp
+  - Decay command registered after clear-context in the subcommands array
+  - Both DecayEngine and PromotionEngine can be instantiated independently from DecayService for CLI use
+---
