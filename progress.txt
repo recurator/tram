@@ -370,3 +370,19 @@
   - MemoryRestoreResult includes tier in details (useful for UI feedback)
   - execute() is async to match pattern of other tools, though operations are synchronous
 ---
+
+## 2026-01-31 - US-023
+- What was implemented: Created MemorySearchCommand class for CLI memory search functionality
+- Files changed:
+  - extensions/memory-tiered/cli/search.ts (new)
+- **Learnings for future iterations:**
+  - CLI commands live in cli/ directory alongside tools/ and hooks/
+  - MemorySearchCommand takes same dependencies as MemoryRecallTool: db, embeddingProvider, vectorHelper, optional scorer
+  - SearchOptions interface defines CLI flags: deep, tier, limit, json, explain
+  - truncateText() helper converts multiline text to single line and limits to 80 chars with ellipsis
+  - formatResult() and formatTextOutput() provide human-readable CLI output
+  - JSON output uses JSON.stringify(result, null, 2) for pretty-printing
+  - --explain flag reuses ScoreBreakdown from scorer.scoreWithBreakdown() for consistency with memory_explain tool
+  - SearchCommandResult includes metadata: query, count, deep flag, tierFilter for context
+  - Results include [PINNED] and [FORGOTTEN] tags in text output for visual status indicators
+---
