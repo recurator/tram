@@ -516,3 +516,17 @@
   - Audit entries use action='promote' with old_value/new_value containing tier in JSON format
   - Both DecayEngine and PromotionEngine share similar patterns for tier changes and audit logging
 ---
+
+## 2026-01-31 - US-032
+- What was implemented: Registered decay service in plugin with background scheduling for automatic tier decay and promotion
+- Files changed:
+  - extensions/memory-tiered/index.ts (updated)
+- **Learnings for future iterations:**
+  - ServiceDefinition interface requires id, description, start(), and stop() methods for OpenClaw registration
+  - DecayService wraps DecayEngine and PromotionEngine, running both on each interval cycle
+  - start() checks decayEngine.shouldRun(intervalHours) before running cycle to avoid duplicate runs
+  - setInterval returns ReturnType<typeof setInterval> for proper typing across Node/browser
+  - stop() must null out intervalId after clearInterval() for proper cleanup detection
+  - Service is registered last in register() after all tools, hooks, and CLI commands
+  - intervalMs calculated from config.decay.intervalHours (default 6 hours)
+---
