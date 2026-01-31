@@ -51,6 +51,7 @@ import { MemoryUnpinCommand } from "./cli/unpin.js";
 import { MemoryExplainCommand } from "./cli/explain.js";
 import { MemorySetContextCommand, MemoryClearContextCommand } from "./cli/context.js";
 import { MemoryDecayCommand } from "./cli/decay.js";
+import { MemoryIndexCommand } from "./cli/index.js";
 
 /**
  * CLI command definition for OpenClaw registration.
@@ -531,6 +532,7 @@ const plugin: Plugin = {
     const setContextCommand = new MemorySetContextCommand(db);
     const clearContextCommand = new MemoryClearContextCommand(db);
     const decayCommand = new MemoryDecayCommand(db, config);
+    const indexCommand = new MemoryIndexCommand(db, embeddingProvider, vectorHelper);
 
     // Register CLI commands under 'memory' parent command
     api.registerCli(
@@ -826,6 +828,26 @@ const plugin: Plugin = {
               return `Unknown decay action: ${action}. Use 'run' to trigger decay.`;
             }
             return decayCommand.execute({
+              json: options.json as boolean | undefined,
+            });
+          },
+        },
+        {
+          name: "index",
+          description: "Index legacy memory files (MEMORY.md, memory/*.md) into the tiered system",
+          options: [
+            {
+              flags: "--force",
+              description: "Re-index all files (ignore hash check)",
+            },
+            {
+              flags: "--json",
+              description: "Output as JSON",
+            },
+          ],
+          execute: async (_args, options) => {
+            return indexCommand.execute({
+              force: options.force as boolean | undefined,
               json: options.json as boolean | undefined,
             });
           },
