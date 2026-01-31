@@ -52,6 +52,7 @@ import { MemoryExplainCommand } from "./cli/explain.js";
 import { MemorySetContextCommand, MemoryClearContextCommand } from "./cli/context.js";
 import { MemoryDecayCommand } from "./cli/decay.js";
 import { MemoryIndexCommand } from "./cli/index.js";
+import { MemoryMigrateCommand } from "./cli/migrate.js";
 
 /**
  * CLI command definition for OpenClaw registration.
@@ -533,6 +534,7 @@ const plugin: Plugin = {
     const clearContextCommand = new MemoryClearContextCommand(db);
     const decayCommand = new MemoryDecayCommand(db, config);
     const indexCommand = new MemoryIndexCommand(db, embeddingProvider, vectorHelper);
+    const migrateCommand = new MemoryMigrateCommand(db, embeddingProvider, vectorHelper);
 
     // Register CLI commands under 'memory' parent command
     api.registerCli(
@@ -848,6 +850,37 @@ const plugin: Plugin = {
           execute: async (_args, options) => {
             return indexCommand.execute({
               force: options.force as boolean | undefined,
+              json: options.json as boolean | undefined,
+            });
+          },
+        },
+        {
+          name: "migrate",
+          description: "Migrate memory data from external sources (e.g., LanceDB)",
+          options: [
+            {
+              flags: "--from <source>",
+              description: "Source to migrate from (currently only 'lancedb' supported)",
+              default: "lancedb",
+            },
+            {
+              flags: "--preview",
+              description: "Show migration plan without executing",
+            },
+            {
+              flags: "--rollback",
+              description: "Rollback to previous backup (restores original LanceDB)",
+            },
+            {
+              flags: "--json",
+              description: "Output as JSON",
+            },
+          ],
+          execute: async (_args, options) => {
+            return migrateCommand.execute({
+              from: options.from as string | undefined,
+              preview: options.preview as boolean | undefined,
+              rollback: options.rollback as boolean | undefined,
               json: options.json as boolean | undefined,
             });
           },

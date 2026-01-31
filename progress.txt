@@ -580,3 +580,26 @@
   - buildMessage() generates context-aware success messages based on results (no files, all skipped, mixed)
   - Command registered without arguments since there's no required input; only options for --force and --json
 ---
+
+## 2026-01-31 - US-036
+- What was implemented: Created LanceDB migration module and CLI command for migrating existing LanceDB memory data to the tiered system
+- Files changed:
+  - extensions/memory-tiered/migration/lancedb.ts (new)
+  - extensions/memory-tiered/cli/migrate.ts (new)
+  - extensions/memory-tiered/index.ts (updated)
+- **Learnings for future iterations:**
+  - LanceDBMigrator takes db, embeddingProvider, vectorHelper, and optional lancedbPath (default: ~/.openclaw/memory/lancedb)
+  - detectLanceDB() checks for .lance files or memories/table directories to detect valid LanceDB installation
+  - preview() returns MigrationPreview with entry count, size estimate, sample entries, and warnings
+  - migrate() creates backup first (unless skipBackup), then processes entries with onProgress callback
+  - readLanceDBEntries() supports JSON and JSONL files; parses text/content/memory fields for memory content
+  - parseJsonEntry() extracts id (or generates UUID), text, vector/embedding, and timestamp fields
+  - Entries imported as WARM tier with source='legacy' per spec
+  - ProgressBar class renders ASCII progress bar with filled (█) and empty (░) characters
+  - rollback() finds most recent backup in .lancedb_backups/ and restores via copyDirectory()
+  - listBackups() returns available backups sorted by creation date (newest first)
+  - MigrateCommandResult includes action, source, preview/migration/rollback data, progressUpdates, and message
+  - CLI migrate command has --from (default lancedb), --preview, --rollback, and --json options
+  - Embedding dimension mismatch triggers re-embedding with needsReEmbed flag
+  - DUPLICATE_THRESHOLD = 0.95 used for skipping existing memories (consistent with other tools)
+---
