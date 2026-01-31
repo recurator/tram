@@ -50,6 +50,25 @@
 - Hybrid search fetches 3x candidates (min 30) for filtering; final limit applied after scoring
 - updateAccessStats increments use_count and appends today to use_days if not already present
 
+- Context tools use ACTIVE_CONTEXT_ID = "active" constant for the single context row
+- MemorySetContextTool.getContext() implements lazy TTL expiry check; returns null and cleans up if expired
+- TTL stored as seconds in DB (ttl_seconds), but tool accepts ttlHours for UX convenience
+- Context expiry calculated as: createdAt.getTime() + ttl_seconds * 1000
+
+---
+
+## 2026-01-31 - US-019
+- What was implemented: Created MemorySetContextTool and MemoryClearContextTool for managing active task context
+- Files changed:
+  - extensions/memory-tiered/tools/memory_set_context.ts (new)
+  - extensions/memory-tiered/tools/memory_clear_context.ts (new)
+- **Learnings for future iterations:**
+  - MemorySetContextTool and MemoryClearContextTool only require db as constructor dependency
+  - Set context uses INSERT OR REPLACE for upsert behavior on id='active'
+  - Clear context returns different messages based on whether context existed
+  - MemorySetContextResult includes expires_at timestamp for UI feedback
+  - getContext() method on MemorySetContextTool can be reused by hooks for auto-recall
+  - Lazy TTL check cleans up expired context on retrieval rather than via scheduled job
 ---
 
 ## 2026-01-31 - US-018
