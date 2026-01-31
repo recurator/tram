@@ -717,3 +717,21 @@
   - Test both sqlite-vec available path (conditional) and cosine fallback path
   - 41 tests covering: FTS5 search (12), vector search (11), cosine fallback (4), hybrid search (12), performance (2)
 ---
+
+## 2026-01-31 - US-043
+- What was implemented: Created comprehensive integration tests for all memory tools
+- Files changed:
+  - extensions/memory-tiered/__tests__/tools.test.ts (new)
+- **Learnings for future iterations:**
+  - MockEmbeddingProvider generates deterministic embeddings based on text hash for reproducible tests
+  - Empty string validation happens before trim; check for "Missing required parameter" for empty strings
+  - Whitespace-only strings trigger the second validation after trim; check for "cannot be empty"
+  - FTS5 query syntax errors occur with hyphenated words; use simple space-separated terms
+  - Hard delete creates audit log after memory deletion; need foreign_keys=OFF to avoid FK violation
+  - Tool tests require db, embeddingProvider, vectorHelper dependencies to be initialized in beforeEach
+  - insertMemory() helper allows direct DB inserts bypassing tools for test setup
+  - fetchMemory() helper standardizes memory retrieval with proper type conversion (0/1 to boolean)
+  - Context tools use "active" as the constant ID for the single context row
+  - getContext() implements lazy TTL expiry check; returns null and cleans up if expired
+  - 41 tests covering: memory_store (6), memory_recall (6), memory_forget (6), memory_restore (4), memory_pin/unpin (6), memory_explain (5), context tools (8)
+---
