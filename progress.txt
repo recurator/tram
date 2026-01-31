@@ -501,3 +501,18 @@
   - Audit entries use action='demote' with old_value/new_value containing tier in JSON format
   - Uses created_at for HOT demotion (based on age) and last_accessed_at for WARM (based on inactivity)
 ---
+
+## 2026-01-31 - US-031
+- What was implemented: Created PromotionEngine class for automatic tier promotion of frequently-used COLD memories
+- Files changed:
+  - extensions/memory-tiered/core/promotion.ts (new)
+- **Learnings for future iterations:**
+  - PromotionEngine takes db and optional ResolvedConfig as constructor dependencies
+  - COLD promotion rule: use_count >= promotionUses (default 3) AND distinct days in use_days >= promotionDays (default 2)
+  - Never auto-promote to HOT; only COLD → WARM promotion is automatic
+  - Pinned memories excluded via WHERE clause (pinned = 0) - already have priority
+  - PromotionResult includes promoted count, totalProcessed, and runAt timestamp
+  - use_days is stored as JSON string in DB; parse with JSON.parse() and use Set to count distinct days
+  - Audit entries use action='promote' with old_value/new_value containing tier in JSON format
+  - Both DecayEngine and PromotionEngine share similar patterns for tier changes and audit logging
+---
