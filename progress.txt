@@ -403,3 +403,19 @@
   - TierCount array always includes all 4 tiers even if count is 0 (consistent display)
   - ListCommandResult has optional tierCounts and items; presence indicates summary vs filtered mode
 ---
+
+## 2026-01-31 - US-025
+- What was implemented: Created MemoryStatsCommand class for CLI memory statistics display
+- Files changed:
+  - extensions/memory-tiered/cli/stats.ts (new)
+- **Learnings for future iterations:**
+  - MemoryStatsCommand requires db, dbPath, embeddingProvider, and ResolvedConfig as constructor dependencies
+  - StatsOptions interface is simple: just `json?: boolean` for output format
+  - formatBytes() helper converts bytes to human-readable KB/MB/GB with appropriate precision
+  - Tier stats and memory type stats both include percentage calculations for visual context
+  - Context status has three states: "active", "expired", "none" - detect via DB query + TTL check
+  - EmbeddingInfo includes provider (from config), model (from provider.getModelName()), dimensions (from provider.getDimensions())
+  - Last decay run timestamp stored in a `meta` table with key='last_decay_run'; check if table exists first
+  - formatTextOutput() builds multi-section output with headers, bar charts, and labeled fields
+  - ASCII bar chart uses █ character with Math.ceil(percentage / 5) for consistent scaling
+---
