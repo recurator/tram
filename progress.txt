@@ -33,6 +33,25 @@
 - Frequency component uses log(1+use_count) normalized by log(101)≈4.6 for reasonable scaling
 - scoreWithBreakdown() provides transparency for memory_explain tool implementation
 
+- TierBudgetAllocator allocates slots by tier: pinned (25%), HOT (45%), WARM (25%), COLD (5%)
+- Use Math.floor for slot calculation to avoid over-allocation; final truncation ensures maxItems respected
+- AllocationResult includes breakdown counts for each bucket and excludedCount for filtered memories
+- ScoredMemory pairs Memory with score for transparent ranking
+
+---
+
+## 2026-01-31 - US-011
+- What was implemented: Created TierBudgetAllocator class for tier-based injection slot allocation
+- Files changed:
+  - extensions/memory-tiered/core/injection.ts (new)
+- **Learnings for future iterations:**
+  - TierBudgetAllocator composes with MemoryScorer (accepts optional scorer in constructor)
+  - allocate() filters out do_not_inject and ARCHIVE memories before processing
+  - Pinned memories are separated from tier-based allocation (they have their own 25% budget)
+  - Slots per tier calculated with Math.floor to avoid exceeding maxItems
+  - Final result sorted by score regardless of tier (best memories appear first)
+  - AllocationResult includes breakdown for debugging and the excludedCount for transparency
+  - Default budgets sum to 100%: 25% + 45% + 25% + 5% = 100%
 ---
 
 ## 2026-01-31 - US-010
