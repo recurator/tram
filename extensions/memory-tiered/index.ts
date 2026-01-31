@@ -50,6 +50,7 @@ import { MemoryPinCommand } from "./cli/pin.js";
 import { MemoryUnpinCommand } from "./cli/unpin.js";
 import { MemoryExplainCommand } from "./cli/explain.js";
 import { MemorySetContextCommand, MemoryClearContextCommand } from "./cli/context.js";
+import { MemoryDecayCommand } from "./cli/decay.js";
 
 /**
  * CLI command definition for OpenClaw registration.
@@ -529,6 +530,7 @@ const plugin: Plugin = {
     const explainCommand = new MemoryExplainCommand(db, embeddingProvider, vectorHelper);
     const setContextCommand = new MemorySetContextCommand(db);
     const clearContextCommand = new MemoryClearContextCommand(db);
+    const decayCommand = new MemoryDecayCommand(db, config);
 
     // Register CLI commands under 'memory' parent command
     api.registerCli(
@@ -798,6 +800,32 @@ const plugin: Plugin = {
           ],
           execute: async (_args, options) => {
             return clearContextCommand.execute({
+              json: options.json as boolean | undefined,
+            });
+          },
+        },
+        {
+          name: "decay",
+          description: "Manually trigger decay and promotion cycle",
+          arguments: [
+            {
+              name: "action",
+              description: "Action to perform (run)",
+              required: true,
+            },
+          ],
+          options: [
+            {
+              flags: "--json",
+              description: "Output as JSON",
+            },
+          ],
+          execute: async (args, options) => {
+            const action = args.action as string;
+            if (action !== "run") {
+              return `Unknown decay action: ${action}. Use 'run' to trigger decay.`;
+            }
+            return decayCommand.execute({
               json: options.json as boolean | undefined,
             });
           },
