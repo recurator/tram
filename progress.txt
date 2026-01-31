@@ -437,3 +437,18 @@
   - All commands validate input before delegating to underlying tools
   - RestoreCommand, PinCommand, UnpinCommand only require db (no embedding/vector dependencies)
 ---
+
+## 2026-01-31 - US-027
+- What was implemented: Created MemoryExplainCommand class for CLI memory explanation functionality
+- Files changed:
+  - extensions/memory-tiered/cli/explain.ts (new)
+- **Learnings for future iterations:**
+  - MemoryExplainCommand wraps MemoryExplainTool for CLI usage
+  - ExplainOptions interface has query (optional for similarity) and json (optional for output format)
+  - ExplainCommandResult includes all details from MemoryExplanationDetails plus queryUsed field
+  - formatTextOutput() creates multi-section display: ID, tier, type, text, timestamps, usage stats, scoring, injection
+  - Scoring section shows both raw and weighted values for transparency
+  - useDays display shows first 5 days with "(+N more)" suffix for longer lists
+  - Query displayed in scoring section when provided (shows what was used for similarity)
+  - Reuses UUID_REGEX for ID validation consistency across CLI commands
+---
