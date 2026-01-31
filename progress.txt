@@ -485,3 +485,19 @@
   - Boolean options use simple format "--flag" (e.g., "--deep", "--json")
   - Default values can be specified in options definition (e.g., default: 10 for --limit)
 ---
+
+## 2026-01-31 - US-030
+- What was implemented: Created DecayEngine class for automatic tier demotion with audit logging
+- Files changed:
+  - extensions/memory-tiered/core/decay.ts (new)
+- **Learnings for future iterations:**
+  - DecayEngine takes db and optional ResolvedConfig as constructor dependencies
+  - HOT demotion rule: age > hotTtlHours (default 72) → demote to COLD
+  - WARM demotion rule: inactive > warmDemotionDays (default 60) → demote to COLD
+  - Pinned memories excluded via WHERE clause (pinned = 0) - never checked for decay
+  - Meta table stores key-value pairs for tracking last_decay_run; ensureMetaTable() creates if not exists
+  - DecayResult includes hotDemoted, warmDemoted, totalProcessed, and runAt timestamp
+  - shouldRun(intervalHours) checks if enough time has passed since last decay run
+  - Audit entries use action='demote' with old_value/new_value containing tier in JSON format
+  - Uses created_at for HOT demotion (based on age) and last_accessed_at for WARM (based on inactivity)
+---
