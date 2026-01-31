@@ -699,3 +699,21 @@
   - Test FTS5 with rebuildIndex() to verify index recovery after bulk operations
   - 39 tests covering: schema (8), CRUD (7), FTS triggers (6), context TTL (6), audit log (4), utility methods (8)
 ---
+
+## 2026-01-31 - US-042
+- What was implemented: Created comprehensive unit tests for search operations (FTS, vector, hybrid, performance)
+- Files changed:
+  - extensions/memory-tiered/__tests__/search.test.ts (new)
+- **Learnings for future iterations:**
+  - FTS5 contentless tables (content='') cannot be directly deleted from; use rebuildIndex() for recovery
+  - Current FTS5 query has performance issue due to JOIN with subquery on rowid lookup
+  - Target of <100ms for 10k memories requires sqlite-vec for O(log n) vector search; cosine fallback is O(n)
+  - generateRandomEmbedding() should normalize to unit length for consistent similarity scores
+  - generateSimilarEmbedding() adds noise then normalizes; noise factor controls similarity level
+  - generateDissimilarEmbedding() creates orthogonal vectors by rotating dimension pairs
+  - Vector similarity tests should use toBeCloseTo() for floating-point comparisons
+  - Performance tests should document actual performance and set realistic thresholds
+  - Use sqliteDb.transaction() for batch inserts in performance tests for efficiency
+  - Test both sqlite-vec available path (conditional) and cosine fallback path
+  - 41 tests covering: FTS5 search (12), vector search (11), cosine fallback (4), hybrid search (12), performance (2)
+---
