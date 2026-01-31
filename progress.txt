@@ -468,3 +468,20 @@
   - formatSetContextOutput() shows text, TTL, and expiry timestamp
   - formatClearContextOutput() shows previous text when cleared, or simple message otherwise
 ---
+
+## 2026-01-31 - US-029
+- What was implemented: Updated plugin entry point to register all CLI commands via api.registerCli()
+- Files changed:
+  - extensions/memory-tiered/index.ts (updated)
+- **Learnings for future iterations:**
+  - PluginApi.registerCli() takes parentCommand, description, subcommands[], and options object
+  - CliCommandDefinition has name, description, arguments[] (optional), options[] (optional), and execute function
+  - Arguments have name, description, and required fields; Options have flags and description
+  - Execute function receives (args: Record<string, unknown>, options: Record<string, unknown>) => Promise<string>
+  - All 10 subcommands registered: search, list, stats, forget, restore, pin, unpin, explain, set-context, clear-context
+  - CLI command instances created after hooks but before registerCli() call
+  - CliRegistrationOptions includes commands array for command namespace registration
+  - Options with values use format "--flag <value>" (e.g., "--tier <tier>")
+  - Boolean options use simple format "--flag" (e.g., "--deep", "--json")
+  - Default values can be specified in options definition (e.g., default: 10 for --limit)
+---
