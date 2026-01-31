@@ -38,6 +38,9 @@
 - Frequency component uses log(1+use_count) normalized by log(101)≈4.6 for reasonable scaling
 - scoreWithBreakdown() provides transparency for memory_explain tool implementation
 
+- Test files live in __tests__/ with .test.ts suffix; use vitest as test runner with ESM support
+- createTestMemory() and daysAgo() helpers simplify test setup; use toBeCloseTo() for float comparisons
+
 - TierBudgetAllocator allocates slots by tier: pinned (25%), HOT (45%), WARM (25%), COLD (5%)
 - Use Math.floor for slot calculation to avoid over-allocation; final truncation ensures maxItems respected
 - AllocationResult includes breakdown counts for each bucket and excludedCount for filtered memories
@@ -643,4 +646,56 @@
   - createEmbeddingProvider() throws EmbeddingProviderUnavailableError for specific provider failures
   - createEmbeddingProvider() throws NoEmbeddingProviderError when auto mode fails to initialize any provider
   - Error guidance should include actionable steps (npm install commands, config settings, environment variables)
+---
+
+## 2026-01-31 - US-039
+- What was implemented: Created comprehensive unit tests for MemoryScorer class
+- Files changed:
+  - extensions/memory-tiered/__tests__/scorer.test.ts (new)
+  - extensions/memory-tiered/vitest.config.ts (new)
+  - extensions/memory-tiered/package.json (added vitest devDependency and test scripts)
+  - extensions/memory-tiered/package-lock.json (updated)
+- **Learnings for future iterations:**
+  - Vitest works well with TypeScript ESM modules; use vitest.config.ts with environment: "node"
+  - Test files use .test.ts suffix and live in __tests__/ directory (excluded from tsconfig.json compilation)
+  - createTestMemory() helper factory creates Memory objects with sensible defaults
+  - daysAgo() helper simplifies creating past dates for age-based tests
+  - scoreWithBreakdown() provides transparency into individual scoring components
+  - Use toBeCloseTo() for floating-point comparisons with appropriate precision (3-5 decimal places)
+  - HALF_LIVES and DEFAULT_WEIGHTS are exported constants useful for test assertions
+  - Tests should verify both individual component calculations and combined score totals
+  - COLD tier adjustment (0.5x recency) applies after pinned check
+  - ARCHIVE tier returns zero breakdown but still calculates age/half-life for explanation purposes
+---
+
+## 2026-01-31 - US-040
+- What was implemented: Created comprehensive unit tests for TierBudgetAllocator class
+- Files changed:
+  - extensions/memory-tiered/__tests__/injection.test.ts (new)
+- **Learnings for future iterations:**
+  - TierBudgetAllocator tests follow same pattern as scorer tests: createTestMemory() and createTestMemories() helpers
+  - Test both allocation behavior (budgets, exclusions) and metadata (breakdown, excludedCount, totalConsidered)
+  - DEFAULT_BUDGETS and DEFAULT_ALLOCATOR_CONFIG are exported constants for test assertions
+  - Math.floor is used for slot calculations, so with maxItems=4, fractional budgets may round to 0
+  - ARCHIVE tier exclusion applies before pinned check (ARCHIVE + pinned still excluded)
+  - do_not_inject exclusion applies independently of tier and pinned status
+  - similarity map passed to allocate() affects scoring via MemoryScorer internally
+  - Final result sorted by overall score regardless of tier bucket origin
+  - Use reference time (now parameter) to test scoring at different points in time
+---
+
+## 2026-01-31 - US-041
+- What was implemented: Created comprehensive unit tests for SQLite database operations
+- Files changed:
+  - extensions/memory-tiered/__tests__/sqlite.test.ts (new)
+- **Learnings for future iterations:**
+  - Use randomUUID() for test memory IDs to ensure uniqueness across tests
+  - Create temp databases in os.tmpdir() and clean up after each test including -wal and -shm files
+  - Schema tests use PRAGMA table_info() to verify column definitions and PRAGMA index_list() for indexes
+  - FTS5 content table UPDATE triggers have known issues; use delete + insert + rebuildIndex for text updates
+  - TTL expiry tested by calculating expiresAt = createdAt.getTime() + ttl_seconds * 1000
+  - Foreign key CASCADE DELETE requires PRAGMA foreign_keys = ON to be enabled per connection
+  - Database.withRetry() wrapper provides exponential backoff for SQLITE_BUSY/SQLITE_LOCKED errors
+  - Test FTS5 with rebuildIndex() to verify index recovery after bulk operations
+  - 39 tests covering: schema (8), CRUD (7), FTS triggers (6), context TTL (6), audit log (4), utility methods (8)
 ---
