@@ -230,3 +230,18 @@
   - dependsOn in uiHints indicates conditional visibility (e.g., apiKey depends on provider value)
   - configSchema export bundles schema, parse, safeParse, resolve, and uiHints for plugin registration
 ---
+
+## 2026-01-31 - US-015
+- What was implemented: Created MemoryForgetTool class for soft/hard memory deletion with audit logging
+- Files changed:
+  - extensions/memory-tiered/tools/memory_forget.ts (new)
+- **Learnings for future iterations:**
+  - MemoryForgetTool supports both query-based and ID-based lookup for flexibility
+  - UUID validation uses regex: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  - Soft forget sets do_not_inject = 1; hard delete removes from memories table entirely
+  - VectorHelper.deleteEmbedding() cleans up vector storage on hard delete
+  - Audit entries use JSON.stringify for old_value/new_value to preserve structure
+  - Hard delete audit logs "hard_delete" as old_value since memory no longer exists
+  - MemoryForgetResult includes restorable flag (true for soft forget, false for hard delete)
+  - Already-forgotten memories throw error to prevent double-forget; suggest hard=true
+---
