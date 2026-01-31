@@ -46,7 +46,25 @@
 - DUPLICATE_THRESHOLD = 0.95 for detecting similar memories via vector similarity
 - Store use_days as JSON.stringify([today]) on initial creation; today = ISO date YYYY-MM-DD
 - Validate and clamp importance to [0.0, 1.0] range
+- MemoryRecallTool returns { content: [...], memories: [...] } format for search results
+- Hybrid search fetches 3x candidates (min 30) for filtering; final limit applied after scoring
+- updateAccessStats increments use_count and appends today to use_days if not already present
 
+---
+
+## 2026-01-31 - US-014
+- What was implemented: Created MemoryRecallTool class for searching and retrieving memories with hybrid search
+- Files changed:
+  - extensions/memory-tiered/tools/memory_recall.ts (new)
+- **Learnings for future iterations:**
+  - MemoryRecallTool takes db, embeddingProvider, vectorHelper, and optional scorer as constructor dependencies
+  - execute() method returns MemoryRecallResult with content array and memories array
+  - Uses vectorHelper.hybridSearch() combining FTS and vector similarity
+  - After hybrid search, fetches full memory records with fetchMemories() for scoring and filtering
+  - Filtering: tier filter, includeArchive (default false), includeForgotten (default false)
+  - Applies MemoryScorer.score() with the vectorScore from hybrid results as the similarity
+  - Updates access stats (use_count++, last_accessed_at, use_days) for returned memories only
+  - RecalledMemory includes forgotten flag (maps from do_not_inject boolean)
 ---
 
 ## 2026-01-31 - US-013
