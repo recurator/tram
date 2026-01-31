@@ -37,12 +37,55 @@ import { MemoryClearContextTool } from "./tools/memory_clear_context.js";
 import { createAutoRecallHook } from "./hooks/auto_recall.js";
 import { createAutoCaptureHook } from "./hooks/auto_capture.js";
 
+// CLI command imports
+import { MemorySearchCommand } from "./cli/search.js";
+import { MemoryListCommand } from "./cli/list.js";
+import { MemoryStatsCommand } from "./cli/stats.js";
+import { MemoryForgetCommand } from "./cli/forget.js";
+import { MemoryRestoreCommand } from "./cli/restore.js";
+import { MemoryPinCommand } from "./cli/pin.js";
+import { MemoryUnpinCommand } from "./cli/unpin.js";
+import { MemoryExplainCommand } from "./cli/explain.js";
+import { MemorySetContextCommand, MemoryClearContextCommand } from "./cli/context.js";
+
+/**
+ * CLI command definition for OpenClaw registration.
+ */
+export interface CliCommandDefinition {
+  name: string;
+  description: string;
+  arguments?: Array<{
+    name: string;
+    description: string;
+    required?: boolean;
+  }>;
+  options?: Array<{
+    flags: string;
+    description: string;
+    default?: unknown;
+  }>;
+  execute: (args: Record<string, unknown>, options: Record<string, unknown>) => Promise<string>;
+}
+
+/**
+ * CLI registration options.
+ */
+export interface CliRegistrationOptions {
+  commands: string[];
+}
+
 /**
  * Plugin API interface matching OpenClaw plugin registration requirements.
  * This is a minimal interface for the expected API shape.
  */
 export interface PluginApi {
   registerTool(name: string, tool: ToolDefinition): void;
+  registerCli(
+    parentCommand: string,
+    description: string,
+    subcommands: CliCommandDefinition[],
+    options?: CliRegistrationOptions
+  ): void;
   on(event: string, handler: (...args: unknown[]) => unknown): void;
 }
 
@@ -392,6 +435,294 @@ const plugin: Plugin = {
       }
       return autoCaptureHook.execute(response);
     });
+
+    // Create CLI command instances
+    const searchCommand = new MemorySearchCommand(db, embeddingProvider, vectorHelper);
+    const listCommand = new MemoryListCommand(db);
+    const statsCommand = new MemoryStatsCommand(db, config.dbPath, embeddingProvider, config);
+    const forgetCommand = new MemoryForgetCommand(db, embeddingProvider, vectorHelper);
+    const restoreCommand = new MemoryRestoreCommand(db);
+    const pinCommand = new MemoryPinCommand(db);
+    const unpinCommand = new MemoryUnpinCommand(db);
+    const explainCommand = new MemoryExplainCommand(db, embeddingProvider, vectorHelper);
+    const setContextCommand = new MemorySetContextCommand(db);
+    const clearContextCommand = new MemoryClearContextCommand(db);
+
+    // Register CLI commands under 'memory' parent command
+    api.registerCli(
+      "memory",
+      "Manage tiered memory system - search, list, and organize memories",
+      [
+        {
+          name: "search",
+          description: "Search memories using hybrid text and semantic search",
+          arguments: [
+            {
+              name: "query",
+              description: "Search query text",
+              required: true,
+            },
+          ],
+          options: [
+            {
+              flags: "--deep",
+              description: "Include ARCHIVE tier memories",
+            },
+            {
+              flags: "--tier <tier>",
+              description: "Filter by tier (HOT, WARM, COLD, ARCHIVE)",
+            },
+            {
+              flags: "--limit <n>",
+              description: "Maximum number of results",
+              default: 10,
+            },
+            {
+              flags: "--json",
+              description: "Output as JSON",
+            },
+            {
+              flags: "--explain",
+              description: "Show scoring breakdown for each result",
+            },
+          ],
+          execute: async (args, options) => {
+            return searchCommand.execute(args.query as string, {
+              deep: options.deep as boolean | undefined,
+              tier: options.tier as "HOT" | "WARM" | "COLD" | "ARCHIVE" | undefined,
+              limit: options.limit as number | undefined,
+              json: options.json as boolean | undefined,
+              explain: options.explain as boolean | undefined,
+            });
+          },
+        },
+        {
+          name: "list",
+          description: "List memories by tier with optional filters",
+          options: [
+            {
+              flags: "--tier <tier>",
+              description: "Filter by tier (HOT, WARM, COLD, ARCHIVE)",
+            },
+            {
+              flags: "--forgotten",
+              description: "Show only forgotten memories",
+            },
+            {
+              flags: "--pinned",
+              description: "Show only pinned memories",
+            },
+            {
+              flags: "--sort <field>",
+              description: "Sort by field (created_at, last_accessed_at, use_count)",
+            },
+            {
+              flags: "--limit <n>",
+              description: "Maximum number of results",
+              default: 20,
+            },
+            {
+              flags: "--json",
+              description: "Output as JSON",
+            },
+          ],
+          execute: async (_args, options) => {
+            return listCommand.execute({
+              tier: options.tier as "HOT" | "WARM" | "COLD" | "ARCHIVE" | undefined,
+              forgotten: options.forgotten as boolean | undefined,
+              pinned: options.pinned as boolean | undefined,
+              sort: options.sort as "created_at" | "last_accessed_at" | "use_count" | undefined,
+              limit: options.limit as number | undefined,
+              json: options.json as boolean | undefined,
+            });
+          },
+        },
+        {
+          name: "stats",
+          description: "Display memory statistics and system information",
+          options: [
+            {
+              flags: "--json",
+              description: "Output as JSON",
+            },
+          ],
+          execute: async (_args, options) => {
+            return statsCommand.execute({
+              json: options.json as boolean | undefined,
+            });
+          },
+        },
+        {
+          name: "forget",
+          description: "Forget a memory (soft forget by default, reversible)",
+          arguments: [
+            {
+              name: "idOrQuery",
+              description: "Memory ID or search query to find memory",
+              required: true,
+            },
+          ],
+          options: [
+            {
+              flags: "--hard",
+              description: "Permanently delete instead of soft forget",
+            },
+            {
+              flags: "--confirm",
+              description: "Confirm hard deletion (required with --hard)",
+            },
+            {
+              flags: "--json",
+              description: "Output as JSON",
+            },
+          ],
+          execute: async (args, options) => {
+            return forgetCommand.execute(args.idOrQuery as string, {
+              hard: options.hard as boolean | undefined,
+              confirm: options.confirm as boolean | undefined,
+              json: options.json as boolean | undefined,
+            });
+          },
+        },
+        {
+          name: "restore",
+          description: "Restore a forgotten memory",
+          arguments: [
+            {
+              name: "id",
+              description: "Memory ID to restore",
+              required: true,
+            },
+          ],
+          options: [
+            {
+              flags: "--json",
+              description: "Output as JSON",
+            },
+          ],
+          execute: async (args, options) => {
+            return restoreCommand.execute(args.id as string, {
+              json: options.json as boolean | undefined,
+            });
+          },
+        },
+        {
+          name: "pin",
+          description: "Pin a memory to bypass decay and prioritize for injection",
+          arguments: [
+            {
+              name: "id",
+              description: "Memory ID to pin",
+              required: true,
+            },
+          ],
+          options: [
+            {
+              flags: "--json",
+              description: "Output as JSON",
+            },
+          ],
+          execute: async (args, options) => {
+            return pinCommand.execute(args.id as string, {
+              json: options.json as boolean | undefined,
+            });
+          },
+        },
+        {
+          name: "unpin",
+          description: "Unpin a memory so it follows normal decay rules",
+          arguments: [
+            {
+              name: "id",
+              description: "Memory ID to unpin",
+              required: true,
+            },
+          ],
+          options: [
+            {
+              flags: "--json",
+              description: "Output as JSON",
+            },
+          ],
+          execute: async (args, options) => {
+            return unpinCommand.execute(args.id as string, {
+              json: options.json as boolean | undefined,
+            });
+          },
+        },
+        {
+          name: "explain",
+          description: "Explain how a memory is scored and its injection eligibility",
+          arguments: [
+            {
+              name: "id",
+              description: "Memory ID to explain",
+              required: true,
+            },
+          ],
+          options: [
+            {
+              flags: "--query <query>",
+              description: "Query for similarity calculation",
+            },
+            {
+              flags: "--json",
+              description: "Output as JSON",
+            },
+          ],
+          execute: async (args, options) => {
+            return explainCommand.execute(args.id as string, {
+              query: options.query as string | undefined,
+              json: options.json as boolean | undefined,
+            });
+          },
+        },
+        {
+          name: "set-context",
+          description: "Set the current active task context for automatic recall",
+          arguments: [
+            {
+              name: "text",
+              description: "Context text to set",
+              required: true,
+            },
+          ],
+          options: [
+            {
+              flags: "--ttl <hours>",
+              description: "Time-to-live in hours",
+              default: 4,
+            },
+            {
+              flags: "--json",
+              description: "Output as JSON",
+            },
+          ],
+          execute: async (args, options) => {
+            return setContextCommand.execute(args.text as string, {
+              ttl: options.ttl as number | undefined,
+              json: options.json as boolean | undefined,
+            });
+          },
+        },
+        {
+          name: "clear-context",
+          description: "Clear the current active task context",
+          options: [
+            {
+              flags: "--json",
+              description: "Output as JSON",
+            },
+          ],
+          execute: async (_args, options) => {
+            return clearContextCommand.execute({
+              json: options.json as boolean | undefined,
+            });
+          },
+        },
+      ],
+      { commands: ["memory"] }
+    );
   },
 };
 
