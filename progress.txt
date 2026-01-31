@@ -64,6 +64,30 @@
 - Format injected memories as XML: <relevant-memories><current-context>...</current-context><memory>...</memory></relevant-memories>
 - Hooks receive ResolvedConfig; createAutoRecallHook() factory maps config to AutoRecallConfig
 
+- Plugin entry point exports default plugin object with id, name, kind, configSchema, and register()
+- register() initializes database, FTS helper, embedding provider, vector helper, then registers tools and hooks
+- createEmbeddingProvider() handles auto/local/openai provider selection with fallback logic
+- Tool registration uses api.registerTool() with name, description, parameters, and execute function
+- Hook registration uses api.on("before_agent_start"|"agent_end", handler) for lifecycle events
+
+---
+
+## 2026-01-31 - US-022
+- What was implemented: Created plugin entry point with default export, tool registration, and hook registration
+- Files changed:
+  - extensions/memory-tiered/index.ts (updated)
+- **Learnings for future iterations:**
+  - Plugin object requires id, name, kind, configSchema, and async register(api, rawConfig) function
+  - PluginApi interface provides registerTool(name, definition) and on(event, handler) methods
+  - ToolDefinition requires name, description, parameters (JSON Schema), and async execute(input) function
+  - Database directory should be created with mkdirSync(dbDir, { recursive: true }) before opening DB
+  - FTS5Helper should be shared with VectorHelper via constructor parameter for efficient hybrid search
+  - createEmbeddingProvider() supports "auto", "local", "openai", "gemini" (gemini not yet implemented)
+  - Auto mode prefers local provider but falls back to OpenAI if API key available and local fails
+  - Tool parameter schemas follow JSON Schema format with type, properties, required fields
+  - Hook handlers receive unknown type and must validate before processing (typeof prompt !== "string")
+  - All 9 tools registered: memory_store, memory_recall, memory_forget, memory_restore, memory_pin, memory_unpin, memory_explain, memory_set_context, memory_clear_context
+  - Both hooks registered: before_agent_start (auto-recall), agent_end (auto-capture)
 ---
 
 ## 2026-01-31 - US-021
