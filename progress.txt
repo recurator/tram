@@ -42,6 +42,25 @@
 - configSchema exports: { schema, parse, safeParse, resolve, uiHints } for OpenClaw plugin registration
 - uiHints structure matches schema hierarchy with label, description, type fields for UI generation
 
+- Tools use MemoryStoreResult with { content: [...], details: {...} } format for agent responses
+- DUPLICATE_THRESHOLD = 0.95 for detecting similar memories via vector similarity
+- Store use_days as JSON.stringify([today]) on initial creation; today = ISO date YYYY-MM-DD
+- Validate and clamp importance to [0.0, 1.0] range
+
+---
+
+## 2026-01-31 - US-013
+- What was implemented: Created MemoryStoreTool class for storing new memories with duplicate detection
+- Files changed:
+  - extensions/memory-tiered/tools/memory_store.ts (new)
+- **Learnings for future iterations:**
+  - MemoryStoreTool takes db, embeddingProvider, and vectorHelper as constructor dependencies
+  - execute() method returns MemoryStoreResult with content array and details object
+  - Duplicate detection uses vectorHelper.vectorSearch() with 0.95 similarity threshold
+  - If duplicate found, returns existing memory details with isDuplicate: true
+  - Memory creation stores embedding immediately after inserting memory record
+  - use_days initialized with today's date as JSON array; last_accessed_at set to creation time
+  - parseMemoryType() defaults to factual when type not specified or invalid
 ---
 
 ## 2026-01-31 - US-011
