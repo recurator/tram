@@ -24,6 +24,11 @@ import {
   type ResolvedConfig,
 } from "./config.js";
 
+import {
+  EmbeddingProviderUnavailableError,
+  NoEmbeddingProviderError,
+} from "./core/errors.js";
+
 import { MemoryStoreTool } from "./tools/memory_store.js";
 import { MemoryRecallTool } from "./tools/memory_recall.js";
 import { MemoryForgetTool } from "./tools/memory_forget.js";
@@ -129,29 +134,47 @@ export interface Plugin {
 
 /**
  * Create the embedding provider based on configuration.
+ * Provides detailed error handling with actionable guidance.
+ *
  * @param config - Resolved configuration
  * @returns The configured embedding provider
+ * @throws EmbeddingProviderUnavailableError - When a specific provider fails
+ * @throws NoEmbeddingProviderError - When no provider could be initialized
  */
 function createEmbeddingProvider(config: ResolvedConfig): EmbeddingProvider {
   const provider = config.embedding.provider;
+  const providerErrors: Record<string, string> = {};
+  const triedProviders: string[] = [];
 
   if (provider === "openai") {
+    triedProviders.push("openai");
     if (!config.embedding.apiKey) {
-      throw new Error(
-        "OpenAI embedding provider requires an API key. " +
-        "Set 'embedding.apiKey' in your config or use the OPENAI_API_KEY environment variable."
+      throw new EmbeddingProviderUnavailableError(
+        "openai",
+        "API key not provided"
       );
     }
-    return new OpenAIEmbeddingProvider({
-      apiKey: config.embedding.apiKey,
-      model: config.embedding.model,
-    });
+    try {
+      return new OpenAIEmbeddingProvider({
+        apiKey: config.embedding.apiKey,
+        model: config.embedding.model,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new EmbeddingProviderUnavailableError("openai", message);
+    }
   }
 
   if (provider === "local") {
-    return new LocalEmbeddingProvider({
-      modelPath: config.embedding.local.modelPath,
-    });
+    triedProviders.push("local");
+    try {
+      return new LocalEmbeddingProvider({
+        modelPath: config.embedding.local.modelPath,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new EmbeddingProviderUnavailableError("local", message);
+    }
   }
 
   // Auto mode: try local first, fall back to OpenAI if API key available
@@ -160,34 +183,48 @@ function createEmbeddingProvider(config: ResolvedConfig): EmbeddingProvider {
     const apiKey = config.embedding.apiKey ?? process.env.OPENAI_API_KEY;
 
     // Prefer local for offline operation
+    triedProviders.push("local");
     try {
       return new LocalEmbeddingProvider({
         modelPath: config.embedding.local.modelPath,
       });
-    } catch {
-      // If local fails and we have an API key, try OpenAI
-      if (apiKey) {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      providerErrors["local"] = message;
+    }
+
+    // If local fails and we have an API key, try OpenAI
+    if (apiKey) {
+      triedProviders.push("openai");
+      try {
         return new OpenAIEmbeddingProvider({
           apiKey,
           model: config.embedding.model,
         });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        providerErrors["openai"] = message;
       }
-      throw new Error(
-        "Failed to initialize local embedding provider and no OpenAI API key available. " +
-        "Install @xenova/transformers for local embeddings or provide an API key."
-      );
+    } else {
+      providerErrors["openai"] = "No API key provided";
     }
+
+    // All providers failed
+    throw new NoEmbeddingProviderError(triedProviders, providerErrors);
   }
 
   // Gemini provider not implemented yet
   if (provider === "gemini") {
-    throw new Error(
-      "Gemini embedding provider is not yet implemented. " +
-      "Use 'local' or 'openai' instead."
+    throw new EmbeddingProviderUnavailableError(
+      "gemini",
+      "Gemini embedding provider is not yet implemented. Use 'local' or 'openai' instead."
     );
   }
 
-  throw new Error(`Unknown embedding provider: ${provider}`);
+  throw new EmbeddingProviderUnavailableError(
+    provider,
+    `Unknown embedding provider type: ${provider}. Valid options are: local, openai, gemini, auto`
+  );
 }
 
 /**

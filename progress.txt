@@ -24,6 +24,11 @@
 - OpenAI embeddings API may return results out of order; sort by index field
 - Provide specific error guidance based on HTTP status (401=auth, 429=rate limit, 400=bad input)
 
+- Custom error classes in core/errors.ts: MemoryError base, MemoryNotFoundError, InvalidMemoryIdError, etc.
+- Database operations should use withRetrySync() or withRetry() for SQLITE_BUSY/SQLITE_LOCKED handling
+- Default retry: 3 attempts, 100ms initial delay, 2x backoff with jitter, 2000ms max delay
+- Error messages should include actionable guidance (e.g., npm install commands, config settings)
+
 - sqlite-vec uses vec0 virtual table with FLOAT[N] column type for embeddings
 - When sqlite-vec unavailable, store embeddings as BLOBs (Float32Array buffer)
 - Cosine similarity: dot(a,b) / (||a|| * ||b||), clamp result to [0,1] for floating point safety
@@ -602,4 +607,40 @@
   - CLI migrate command has --from (default lancedb), --preview, --rollback, and --json options
   - Embedding dimension mismatch triggers re-embedding with needsReEmbed flag
   - DUPLICATE_THRESHOLD = 0.95 used for skipping existing memories (consistent with other tools)
+---
+
+## 2026-01-31 - US-037
+- What was implemented: Created core/extensions.ts with Phase 2 extension point interfaces
+- Files changed:
+  - extensions/memory-tiered/core/extensions.ts (new)
+- **Learnings for future iterations:**
+  - Entity interface includes name, type, startOffset, endOffset, confidence, and optional metadata
+  - EntityExtractor.extract() returns Promise<Entity[]> for async NLP processing
+  - MemoryCompactor.compact(memories) takes 2+ memories and returns a single consolidated memory
+  - SemanticDeduplicator.findDuplicates(memory) finds duplicates of a specific memory
+  - All interfaces have optional batch methods for efficiency (extractBatch, findCompactionCandidates, findAllDuplicateGroups)
+  - ExtensionRegistry interface allows dynamic registration of Phase 2 implementations
+  - meta_type column can mark memories as 'compacted', 'duplicate', 'canonical', 'subsumed'
+  - parent_id column enables provenance tracking for compacted memories
+  - entity_refs column will store JSON array of {name, type, confidence} for quick lookup
+---
+
+## 2026-01-31 - US-038
+- What was implemented: Added comprehensive error handling with custom error classes and DB retry logic
+- Files changed:
+  - extensions/memory-tiered/core/errors.ts (new)
+  - extensions/memory-tiered/db/retry.ts (new)
+  - extensions/memory-tiered/db/sqlite.ts (updated)
+  - extensions/memory-tiered/index.ts (updated)
+- **Learnings for future iterations:**
+  - MemoryError base class includes code, guidance, and retryable fields for comprehensive error handling
+  - Custom error classes: MemoryNotFoundError, InvalidMemoryIdError, SimilarMemoryExistsError, AlreadyForgottenError, NotForgottenError, AlreadyPinnedError, NotPinnedError, DatabaseLockedError, EmbeddingProviderUnavailableError, NoEmbeddingProviderError, EmptyQueryError, EmptyMemoryTextError
+  - UUID_REGEX and validateMemoryId() exported from errors.ts for consistent ID validation across modules
+  - withRetrySync() and withRetry() implement exponential backoff with jitter for database lock handling
+  - isDatabaseLockedError() detects SQLITE_BUSY, SQLITE_LOCKED, and related error messages
+  - Default retry config: 3 attempts, 100ms initial delay, 2000ms max delay, 2x backoff multiplier
+  - Database class now accepts optional RetryConfig and provides withRetry(), execWithRetry(), runWithRetry(), getWithRetry(), allWithRetry() methods
+  - createEmbeddingProvider() throws EmbeddingProviderUnavailableError for specific provider failures
+  - createEmbeddingProvider() throws NoEmbeddingProviderError when auto mode fails to initialize any provider
+  - Error guidance should include actionable steps (npm install commands, config settings, environment variables)
 ---
