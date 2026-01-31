@@ -564,3 +564,19 @@
   - indexAll() returns IndexingResult with filesFound, filesIndexed, filesSkipped, chunksCreated, and per-file details
   - Force option bypasses hash check for re-indexing all files
 ---
+
+## 2026-01-31 - US-035
+- What was implemented: Created MemoryIndexCommand class for CLI file indexing with --force and --json options
+- Files changed:
+  - extensions/memory-tiered/cli/index.ts (new)
+  - extensions/memory-tiered/index.ts (updated)
+- **Learnings for future iterations:**
+  - MemoryIndexCommand wraps FileIndexer for CLI usage with db, embeddingProvider, vectorHelper dependencies
+  - IndexOptions interface has force (boolean) and json (boolean) options
+  - IndexCommandResult includes filesFound, filesIndexed, filesSkipped, chunksCreated, forceMode, files array, and message
+  - formatFileResult() helper creates [SKIPPED], [ERROR], or [INDEXED] prefix for each file status
+  - formatTextOutput() creates multi-section display with summary counts and per-file details
+  - If force mode, indexer.clearFileHashes() is called before indexAll() to reset tracking
+  - buildMessage() generates context-aware success messages based on results (no files, all skipped, mixed)
+  - Command registered without arguments since there's no required input; only options for --force and --json
+---
