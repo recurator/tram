@@ -38,6 +38,10 @@
 - AllocationResult includes breakdown counts for each bucket and excludedCount for filtered memories
 - ScoredMemory pairs Memory with score for transparent ranking
 
+- Zod schemas: use .optional() for nested objects, then resolveConfig() applies defaults via ?? operator
+- configSchema exports: { schema, parse, safeParse, resolve, uiHints } for OpenClaw plugin registration
+- uiHints structure matches schema hierarchy with label, description, type fields for UI generation
+
 ---
 
 ## 2026-01-31 - US-011
@@ -173,4 +177,19 @@
   - Tier enum values should match the CHECK constraint in the future SQLite schema
   - MemoryType affects decay half-life: procedural (180d), factual (90d), project (45d), episodic (10d)
   - use_days is a string[] (JSON array) stored as string in SQLite for tracking distinct access days
+---
+
+## 2026-01-31 - US-012
+- What was implemented: Created Zod-based configuration schema with UI hints for OpenClaw
+- Files changed:
+  - extensions/memory-tiered/config.ts (new)
+  - extensions/memory-tiered/package.json (added zod dependency)
+  - extensions/memory-tiered/package-lock.json (updated)
+- **Learnings for future iterations:**
+  - Zod's .default({}) for nested objects requires full default values; use .optional() instead and provide a resolveConfig() function to apply defaults
+  - ResolvedConfig interface represents the fully-resolved config with all defaults applied
+  - DEFAULTS constant centralizes all default values for easy reference
+  - uiHints uses nested fields structure matching the schema hierarchy
+  - dependsOn in uiHints indicates conditional visibility (e.g., apiKey depends on provider value)
+  - configSchema export bundles schema, parse, safeParse, resolve, and uiHints for plugin registration
 ---
