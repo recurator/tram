@@ -386,3 +386,20 @@
   - SearchCommandResult includes metadata: query, count, deep flag, tierFilter for context
   - Results include [PINNED] and [FORGOTTEN] tags in text output for visual status indicators
 ---
+
+## 2026-01-31 - US-024
+- What was implemented: Created MemoryListCommand class for CLI memory listing functionality
+- Files changed:
+  - extensions/memory-tiered/cli/list.ts (new)
+- **Learnings for future iterations:**
+  - MemoryListCommand only requires db as constructor dependency (no embedding/vector needed for listing)
+  - Default behavior (no filters) shows tier count summary with bar chart visualization
+  - Filtered mode triggered when any of --tier, --forgotten, or --pinned specified
+  - executeSummary() uses GROUP BY tier with CASE-based ordering for consistent tier order
+  - executeFiltered() builds dynamic WHERE clause from options
+  - ListItem contains simplified memory info suitable for display (no scoring needed)
+  - Sort field maps directly to column; all sorts use DESC (most recent/highest first)
+  - formatTierCounts() creates ASCII bar chart with percentage breakdown
+  - TierCount array always includes all 4 tiers even if count is 0 (consistent display)
+  - ListCommandResult has optional tierCounts and items; presence indicates summary vs filtered mode
+---
