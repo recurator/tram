@@ -128,8 +128,10 @@ export class AutoRecallHook {
    * @returns Hook result with prepended context
    */
   async execute(prompt: string): Promise<AutoRecallResult> {
+    process.stderr.write(`[TRAM] execute: enabled=${this.config.enabled}, promptLen=${prompt?.length ?? 0}\n`);
     // Check if auto-recall is enabled
     if (!this.config.enabled) {
+      process.stderr.write(`[TRAM] RETURN: disabled\n`);
       return {
         memoriesInjected: 0,
         contextIncluded: false,
@@ -138,6 +140,7 @@ export class AutoRecallHook {
 
     // Check for empty prompt
     if (!prompt || prompt.trim().length === 0) {
+      process.stderr.write(`[TRAM] RETURN: empty prompt\n`);
       return {
         memoriesInjected: 0,
         contextIncluded: false,
@@ -148,7 +151,8 @@ export class AutoRecallHook {
     const keyTerms = this.extractKeyTerms(prompt);
 
     // If no meaningful terms, try using the whole prompt (trimmed)
-    const searchQuery = keyTerms.length > 0 ? keyTerms.join(" ") : prompt.trim();
+    // Use OR to match ANY term (FTS5 default is AND which requires ALL terms)
+    const searchQuery = keyTerms.length > 0 ? keyTerms.join(" OR ") : prompt.trim();
 
     // Generate embedding for the search query
     const queryEmbedding = await this.embeddingProvider.embed(searchQuery);
@@ -161,8 +165,10 @@ export class AutoRecallHook {
       { limit: candidateLimit }
     );
 
+    process.stderr.write(`[TRAM] hybridResults: ${hybridResults.length}\n`);
     // If no results found, still check for current context
     if (hybridResults.length === 0) {
+      process.stderr.write(`[TRAM] RETURN: no results\n`);
       const currentContext = this.contextTool.getContext();
       if (currentContext) {
         const formatted = this.formatMemoriesAsXml([], currentContext.text);

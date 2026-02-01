@@ -514,7 +514,7 @@ export const uiHints = {
  * Parse configuration with validation
  */
 export function parseConfig(input: unknown): MemoryTieredConfig {
-  return MemoryTieredConfigSchema.parse(input);
+  return MemoryTieredConfigSchema.parse(input ?? {});
 }
 
 /**

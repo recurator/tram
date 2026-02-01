@@ -127,6 +127,32 @@ const MEMORY_TYPE_PATTERNS: Array<{
 ];
 
 /**
+ * Noise filters to skip raw channel metadata and system messages.
+ * These patterns detect content that should NOT be captured as memories.
+ */
+const NOISE_FILTERS: RegExp[] = [
+  // Raw channel message metadata (Telegram, Discord, etc.)
+  /^\[(?:Telegram|Discord|Signal|WhatsApp|Slack)\s+\w+\s+id:/i,
+  // Message ID suffixes
+  /\[message_id:\s*\d+\]/,
+  // System timestamps at start
+  /^\[\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}/,
+  // Tool call outputs
+  /toolCallId|function_results|<function_calls>|<\/antml:function_calls>/,
+  // XML-like system tags
+  /^<[a-z-]+>[\s\S]*<\/[a-z-]+>$/i,
+];
+
+/**
+ * Check if text matches any noise filter pattern.
+ * @param text - Text to check
+ * @returns True if text is noise and should be skipped
+ */
+function isNoise(text: string): boolean {
+  return NOISE_FILTERS.some((pattern) => pattern.test(text));
+}
+
+/**
  * AutoCaptureHook provides automatic memory capture from conversations.
  * Registered as an agent_end hook to capture important information.
  */
@@ -180,6 +206,15 @@ export class AutoCaptureHook {
 
     // Check for empty response
     if (!response || response.trim().length === 0) {
+      return {
+        memoriesCaptured: 0,
+        captured: [],
+        duplicatesSkipped: 0,
+      };
+    }
+
+    // Check if entire response is noise (channel metadata, tool output, etc.)
+    if (isNoise(response)) {
       return {
         memoriesCaptured: 0,
         captured: [],
@@ -252,13 +287,18 @@ export class AutoCaptureHook {
       .filter((s) => s.length > 0);
 
     for (const segment of segments) {
+      // Skip noise segments (channel metadata, tool output, etc.)
+      if (isNoise(segment)) {
+        continue;
+      }
+
       // Skip segments outside length bounds
       if (segment.length < this.config.minLength || segment.length > this.config.maxLength) {
         // Try to extract sentences if segment is too long
         if (segment.length > this.config.maxLength) {
           const sentences = this.extractSentences(segment);
           for (const sentence of sentences) {
-            if (sentence.length >= this.config.minLength && sentence.length <= this.config.maxLength) {
+            if (sentence.length >= this.config.minLength && sentence.length <= this.config.maxLength && !isNoise(sentence)) {
               const { type, score } = this.detectMemoryType(sentence);
               candidates.push({ text: sentence, type, score });
             }

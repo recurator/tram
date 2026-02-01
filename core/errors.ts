@@ -4,7 +4,7 @@
  */
 
 /**
- * Base error class for memory-tiered plugin errors.
+ * Base error class for TRAM plugin errors.
  * Includes error code and actionable guidance.
  */
 export class MemoryError extends Error {

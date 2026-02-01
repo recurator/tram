@@ -106,7 +106,7 @@ export class VectorHelper {
       // sqlite-vec not available, will use cosine fallback
       this.sqliteVecAvailable = false;
       console.warn(
-        "[memory-tiered] sqlite-vec extension not available. " +
+        "[tram] sqlite-vec extension not available. " +
         "Falling back to in-process cosine similarity. " +
         "For better performance, install sqlite-vec: npm install sqlite-vec"
       );
