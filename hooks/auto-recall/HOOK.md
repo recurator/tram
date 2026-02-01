@@ -1,10 +1,8 @@
 ---
 name: tram-auto-recall
 description: "Automatically inject relevant memories into agent context"
-metadata:
-  openclaw:
-    emoji: "🧠"
-    events: ["agent:bootstrap"]
+emoji: "🧠"
+events: ["agent:bootstrap"]
 ---
 
 # TRAM Auto-Recall Hook

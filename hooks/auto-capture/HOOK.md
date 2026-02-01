@@ -1,10 +1,8 @@
 ---
 name: tram-auto-capture
 description: "Automatically capture important information from conversations"
-metadata:
-  openclaw:
-    emoji: "📝"
-    events: ["command:stop"]
+emoji: "📝"
+events: ["command:stop"]
 ---
 
 # TRAM Auto-Capture Hook

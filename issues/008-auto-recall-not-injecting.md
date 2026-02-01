@@ -1,9 +1,10 @@
 # TRAM-008: Auto-Recall Hook Not Registering with OpenClaw
 
-**Status:** Open  
-**Severity:** High (core feature broken)  
-**Reported:** 2026-02-01  
-**Updated:** 2026-02-01  
+**Status:** Resolved
+**Severity:** High (core feature broken)
+**Reported:** 2026-02-01
+**Updated:** 2026-02-01
+**Resolved:** 2026-02-01  
 
 ---
 
@@ -69,9 +70,9 @@ This should be changed to synchronous registration (all async work should happen
 
 ## Acceptance Criteria
 
-- [ ] `openclaw hooks list` shows `tram-auto-recall` with `plugin:tram` source
-- [ ] Gateway logs show `[TRAM] Injected N memories into context` on each turn
-- [ ] Agent context includes `<relevant-memories>` XML block when memories match
+- [x] `openclaw hooks list` shows `tram-auto-recall` with `plugin:tram` source
+- [x] Gateway logs show `[TRAM] Injected N memories into context` on each turn
+- [x] Agent context includes `<relevant-memories>` XML block when memories match
 
 ---
 

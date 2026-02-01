@@ -11,7 +11,12 @@
 
 import { Type } from "@sinclair/typebox";
 import { mkdirSync } from "node:fs";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+// Import plugin SDK for hook registration
+// This must be called to register hooks with OpenClaw's event system
+import { registerPluginHooksFromDir } from "openclaw/plugin-sdk";
 
 import { Database } from "./db/sqlite.js";
 import { FTS5Helper } from "./db/fts.js";
@@ -505,12 +510,19 @@ const plugin: Plugin = {
       },
     });
 
-    // Initialize file-based hooks with dependencies
-    // Hooks are registered via package.json openclaw.hooks array and loaded by OpenClaw
-    // We just need to initialize them with the database and providers
+    // Register plugin hooks with OpenClaw's event system
+    // The package.json openclaw.hooks array only works for standalone hook packs, not plugins.
+    // Plugins must explicitly call registerPluginHooksFromDir() to register hooks at runtime.
+    // See: https://docs.openclaw.ai/plugin - "Plugins can ship hooks and register them at runtime"
+    const pluginDir = dirname(fileURLToPath(import.meta.url));
+    const hooksDir = join(pluginDir, "hooks");
+    registerPluginHooksFromDir(api, hooksDir);
+
+    // Initialize hooks with dependencies (database, providers, config)
+    // The hook handlers use module-level state that must be set before events fire
     initAutoRecallHook(db, embeddingProvider, vectorHelper, config);
     initAutoCaptureHook(db, embeddingProvider, vectorHelper, config);
-    console.log("[TRAM] Initialized file-based hooks (auto-recall, auto-capture)");
+    console.log("[TRAM] Registered and initialized hooks (auto-recall, auto-capture)");
 
     // Create CLI command instances
     const searchCommand = new MemorySearchCommand(db, embeddingProvider, vectorHelper);
