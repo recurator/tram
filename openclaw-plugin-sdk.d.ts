@@ -29,8 +29,12 @@ declare module "openclaw/plugin-sdk" {
    * }
    * ```
    */
-  export function registerPluginHooksFromDir(
-    api: OpenClawPluginApi,
-    hooksDir: string
-  ): void;
+  /**
+   * Register plugin hooks from a directory.
+   * Note: This function may not exist in all OpenClaw versions.
+   * Always check `typeof registerPluginHooksFromDir === "function"` before calling.
+   */
+  export const registerPluginHooksFromDir:
+    | ((api: OpenClawPluginApi, hooksDir: string) => void)
+    | undefined;
 }

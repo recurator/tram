@@ -3,6 +3,9 @@
  * Provides semantic similarity search for memory embeddings.
  */
 
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { Database as SqliteDb, Statement } from "better-sqlite3";
 import { FTS5Helper, type FTSSearchResult } from "./fts.js";
 
@@ -78,12 +81,40 @@ export class VectorHelper {
     // Try to load sqlite-vec extension
     try {
       // Common extension paths to try
-      const extensionPaths = [
+      // sqlite-vec npm package puts binaries in platform-specific subdirectories
+      const extensionPaths: string[] = [
         "vec0",
         "./vec0",
         "sqlite-vec",
         "./sqlite-vec",
       ];
+
+      // Find sqlite-vec binary in node_modules
+      // Walk up from current file to find node_modules
+      const currentDir = dirname(fileURLToPath(import.meta.url));
+      const searchDirs = [
+        join(currentDir, "..", "node_modules"),
+        join(currentDir, "..", "..", "node_modules"),
+        join(currentDir, "..", "..", "..", "node_modules"),
+      ];
+
+      const platformPackages = [
+        { pkg: "sqlite-vec-linux-arm64", ext: "so" },
+        { pkg: "sqlite-vec-linux-x64", ext: "so" },
+        { pkg: "sqlite-vec-darwin-arm64", ext: "dylib" },
+        { pkg: "sqlite-vec-darwin-x64", ext: "dylib" },
+        { pkg: "sqlite-vec-win32-x64", ext: "dll" },
+      ];
+
+      for (const dir of searchDirs) {
+        for (const { pkg, ext } of platformPackages) {
+          const fullPath = join(dir, pkg, `vec0.${ext}`);
+          if (existsSync(fullPath)) {
+            // loadExtension wants path without extension
+            extensionPaths.push(fullPath.replace(new RegExp(`\\.${ext}$`), ""));
+          }
+        }
+      }
 
       let loaded = false;
       for (const path of extensionPaths) {

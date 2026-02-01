@@ -11,28 +11,34 @@ import { VectorHelper } from "../../db/vectors.js";
 import type { ResolvedConfig } from "../../config.js";
 
 /**
- * OpenClaw hook event interface
+ * OpenClaw agent_end event interface
+ * See: openclaw/src/plugins/types.ts - PluginHookAgentEndEvent
  */
-export interface HookEvent {
-  type: string;
-  action?: string;
-  sessionKey?: string;
-  timestamp?: string;
-  messages?: Array<{
-    role: string;
-    content?: string | Array<{ type: string; text?: string }>;
-  }>;
-  context?: {
-    bootstrapFiles?: Array<{ path: string; content: string }>;
-    workspace?: string;
-    session?: unknown;
-  };
+export interface AgentEndEvent {
+  messages: unknown[];
+  success: boolean;
+  error?: string;
+  durationMs?: number;
 }
 
 /**
- * Hook handler type
+ * OpenClaw agent context interface
+ * See: openclaw/src/plugins/types.ts - PluginHookAgentContext
  */
-export type HookHandler = (event: HookEvent) => Promise<void> | void;
+export interface AgentContext {
+  agentId?: string;
+  sessionKey?: string;
+  workspaceDir?: string;
+  messageProvider?: string;
+}
+
+/**
+ * Hook handler type for agent_end
+ */
+export type HookHandler = (
+  event: AgentEndEvent,
+  ctx: AgentContext
+) => Promise<void> | void;
 
 // Module-level state (initialized by plugin registration)
 let db: SqliteDb | null = null;
@@ -164,16 +170,24 @@ function isNoise(text: string): boolean {
 }
 
 /**
+ * Message structure from OpenClaw
+ */
+interface Message {
+  role: string;
+  content?: string | Array<{ type: string; text?: string }>;
+}
+
+/**
  * Extract assistant response text from messages.
  */
-function extractAssistantResponse(event: HookEvent): string | null {
+function extractAssistantResponse(event: AgentEndEvent): string | null {
   if (!event.messages || event.messages.length === 0) {
     return null;
   }
 
   // Find the last assistant message
   for (let i = event.messages.length - 1; i >= 0; i--) {
-    const msg = event.messages[i];
+    const msg = event.messages[i] as Message;
     if (msg.role === "assistant") {
       if (typeof msg.content === "string") {
         return msg.content;
@@ -335,15 +349,13 @@ async function storeMemory(
 }
 
 /**
- * Hook handler for command:stop event.
+ * Hook handler for agent_end event.
  * Captures important information from the conversation.
  */
-export const handler: HookHandler = async (event: HookEvent) => {
-  // Handle command:stop event for auto-capture
-  if (event.type !== "command:stop" && event.type !== "command") {
-    return;
-  }
-
+export const handler: HookHandler = async (
+  event: AgentEndEvent,
+  _ctx: AgentContext
+): Promise<void> => {
   // Check if initialized and enabled
   if (!db || !embeddingProvider || !vectorHelper || !config) {
     console.error("[TRAM] Auto-capture hook not initialized");
@@ -351,6 +363,11 @@ export const handler: HookHandler = async (event: HookEvent) => {
   }
 
   if (!config.autoCapture) {
+    return;
+  }
+
+  // Only capture from successful conversations
+  if (!event.success) {
     return;
   }
 

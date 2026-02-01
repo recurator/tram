@@ -14,9 +14,7 @@ import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// Import plugin SDK for hook registration
-// This must be called to register hooks with OpenClaw's event system
-import { registerPluginHooksFromDir } from "openclaw/plugin-sdk";
+// Note: Plugin hooks are registered via api.registerHook() in the register() function
 
 import { Database } from "./db/sqlite.js";
 import { FTS5Helper } from "./db/fts.js";
@@ -55,6 +53,10 @@ import { initAutoCaptureHook } from "./hooks/auto-capture/handler.js";
 import { DecayEngine } from "./core/decay.js";
 import { PromotionEngine } from "./core/promotion.js";
 
+// Hook handlers
+import autoRecallHandler from "./hooks/auto-recall/handler.js";
+import autoCaptureHandler from "./hooks/auto-capture/handler.js";
+
 // CLI command imports
 import { MemorySearchCommand } from "./cli/search.js";
 import { MemoryListCommand } from "./cli/list.js";
@@ -74,6 +76,7 @@ import { MemoryMigrateCommand } from "./cli/migrate.js";
  * Uses 'any' for action callback to match Commander.js flexible typing
  */
 interface Command {
+  name(): string;
   command(name: string): Command;
   description(desc: string): Command;
   argument(name: string, description?: string): Command;
@@ -122,6 +125,10 @@ export interface ToolDefinition {
  * OpenClaw Plugin API interface.
  * See: https://docs.openclaw.ai/plugin
  */
+// Hook types are defined in the handler files - use 'any' for flexibility with OpenClaw's internal types
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type HookHandler = (event: any) => Promise<void> | void;
+
 export interface OpenClawPluginApi {
   /** Plugin configuration from openclaw config file */
   pluginConfig: unknown;
@@ -137,6 +144,13 @@ export interface OpenClawPluginApi {
 
   /** Register a background service */
   registerService(service: ServiceDefinition): void;
+
+  /** Register a hook handler for events */
+  registerHook?(
+    events: string | string[],
+    handler: HookHandler,
+    opts?: { entry?: unknown; register?: boolean }
+  ): void;
 
   /** Logger instance */
   logger?: {
@@ -510,13 +524,17 @@ const plugin: Plugin = {
       },
     });
 
-    // Register plugin hooks with OpenClaw's event system
-    // The package.json openclaw.hooks array only works for standalone hook packs, not plugins.
-    // Plugins must explicitly call registerPluginHooksFromDir() to register hooks at runtime.
-    // See: https://docs.openclaw.ai/plugin - "Plugins can ship hooks and register them at runtime"
-    const pluginDir = dirname(fileURLToPath(import.meta.url));
-    const hooksDir = join(pluginDir, "hooks");
-    registerPluginHooksFromDir(api, hooksDir);
+    // Register plugin hooks with OpenClaw's typed hook system using api.on()
+    // The api.on() method registers to typedHooks which the hook runner checks
+    // Event names: before_agent_start (for recall), agent_end (for capture)
+    if (typeof (api as any).on === "function") {
+      // Register auto-recall hook for before_agent_start event
+      (api as any).on("before_agent_start", autoRecallHandler);
+      // Register auto-capture hook for agent_end event
+      (api as any).on("agent_end", autoCaptureHandler);
+    } else {
+      console.warn("[TRAM] api.on not available - hooks will not fire");
+    }
 
     // Initialize hooks with dependencies (database, providers, config)
     // The hook handlers use module-level state that must be set before events fire
@@ -541,15 +559,12 @@ const plugin: Plugin = {
 
     // Register CLI commands using Commander.js callback pattern
     // See: https://docs.openclaw.ai/plugin - CLI Registration section
+    // OpenClaw flattens plugin commands to root level, so we use tram-* prefix
     api.registerCli(
       ({ program }) => {
-        const memory = program
-          .command("memory")
-          .description("Manage tiered memory system - search, list, and organize memories");
-
-        // memory search <query>
-        memory
-          .command("search <query>")
+        // tram-search <query>
+        program
+          .command("tram-search <query>")
           .description("Search memories using hybrid text and semantic search")
           .option("--deep", "Include ARCHIVE tier memories")
           .option("--tier <tier>", "Filter by tier (HOT, WARM, COLD, ARCHIVE)")
@@ -568,8 +583,8 @@ const plugin: Plugin = {
           });
 
         // memory list
-        memory
-          .command("list")
+        program
+          .command("tram-list")
           .description("List memories by tier with optional filters")
           .option("--tier <tier>", "Filter by tier (HOT, WARM, COLD, ARCHIVE)")
           .option("--forgotten", "Show only forgotten memories")
@@ -590,8 +605,8 @@ const plugin: Plugin = {
           });
 
         // memory stats
-        memory
-          .command("stats")
+        program
+          .command("tram-stats")
           .description("Display memory statistics and system information")
           .option("--json", "Output as JSON")
           .action(async (opts: Record<string, unknown>) => {
@@ -602,8 +617,8 @@ const plugin: Plugin = {
           });
 
         // memory forget <idOrQuery>
-        memory
-          .command("forget <idOrQuery>")
+        program
+          .command("tram-forget <idOrQuery>")
           .description("Forget a memory (soft forget by default, reversible)")
           .option("--hard", "Permanently delete instead of soft forget")
           .option("--confirm", "Confirm hard deletion (required with --hard)")
@@ -618,8 +633,8 @@ const plugin: Plugin = {
           });
 
         // memory restore <id>
-        memory
-          .command("restore <id>")
+        program
+          .command("tram-restore <id>")
           .description("Restore a forgotten memory")
           .option("--json", "Output as JSON")
           .action(async (id: string, opts: Record<string, unknown>) => {
@@ -630,8 +645,8 @@ const plugin: Plugin = {
           });
 
         // memory pin <id>
-        memory
-          .command("pin <id>")
+        program
+          .command("tram-pin <id>")
           .description("Pin a memory to bypass decay and prioritize for injection")
           .option("--json", "Output as JSON")
           .action(async (id: string, opts: Record<string, unknown>) => {
@@ -642,8 +657,8 @@ const plugin: Plugin = {
           });
 
         // memory unpin <id>
-        memory
-          .command("unpin <id>")
+        program
+          .command("tram-unpin <id>")
           .description("Unpin a memory so it follows normal decay rules")
           .option("--json", "Output as JSON")
           .action(async (id: string, opts: Record<string, unknown>) => {
@@ -654,8 +669,8 @@ const plugin: Plugin = {
           });
 
         // memory explain <id>
-        memory
-          .command("explain <id>")
+        program
+          .command("tram-explain <id>")
           .description("Explain how a memory is scored and its injection eligibility")
           .option("--query <query>", "Query for similarity calculation")
           .option("--json", "Output as JSON")
@@ -668,8 +683,8 @@ const plugin: Plugin = {
           });
 
         // memory set-context <text>
-        memory
-          .command("set-context <text>")
+        program
+          .command("tram-set-context <text>")
           .description("Set the current active task context for automatic recall")
           .option("--ttl <hours>", "Time-to-live in hours", "4")
           .option("--json", "Output as JSON")
@@ -682,8 +697,8 @@ const plugin: Plugin = {
           });
 
         // memory clear-context
-        memory
-          .command("clear-context")
+        program
+          .command("tram-clear-context")
           .description("Clear the current active task context")
           .option("--json", "Output as JSON")
           .action(async (opts: Record<string, unknown>) => {
@@ -694,8 +709,8 @@ const plugin: Plugin = {
           });
 
         // memory decay <action>
-        memory
-          .command("decay <action>")
+        program
+          .command("tram-decay <action>")
           .description("Manually trigger decay and promotion cycle (action: run)")
           .option("--json", "Output as JSON")
           .action(async (action: string, opts: Record<string, unknown>) => {
@@ -710,8 +725,8 @@ const plugin: Plugin = {
           });
 
         // memory index
-        memory
-          .command("index")
+        program
+          .command("tram-index")
           .description("Index legacy memory files (MEMORY.md, memory/*.md) into the tiered system")
           .option("--force", "Re-index all files (ignore hash check)")
           .option("--json", "Output as JSON")
@@ -724,8 +739,8 @@ const plugin: Plugin = {
           });
 
         // memory migrate
-        memory
-          .command("migrate")
+        program
+          .command("tram-migrate")
           .description("Migrate memory data from external sources (e.g., LanceDB)")
           .option("--from <source>", "Source to migrate from (currently only 'lancedb' supported)", "lancedb")
           .option("--preview", "Show migration plan without executing")
@@ -741,7 +756,7 @@ const plugin: Plugin = {
             console.log(result);
           });
       },
-      { commands: ["memory"] }
+      { commands: ["tram-search", "tram-list", "tram-stats", "tram-forget", "tram-restore", "tram-pin", "tram-unpin", "tram-explain", "tram-set-context", "tram-clear-context", "tram-decay", "tram-index", "tram-migrate"] }
     );
 
     // Create and register the decay service

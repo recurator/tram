@@ -13,28 +13,41 @@ import { MemorySetContextTool } from "../../tools/memory_set_context.js";
 import type { ResolvedConfig } from "../../config.js";
 
 /**
- * OpenClaw hook event interface
+ * OpenClaw before_agent_start event interface
+ * See: openclaw/src/plugins/types.ts - PluginHookBeforeAgentStartEvent
  */
-export interface HookEvent {
-  type: string;
-  action?: string;
-  sessionKey?: string;
-  timestamp?: string;
-  messages?: Array<{
-    role: string;
-    content?: string | Array<{ type: string; text?: string }>;
-  }>;
-  context?: {
-    bootstrapFiles?: Array<{ path: string; content: string }>;
-    workspace?: string;
-    session?: unknown;
-  };
+export interface BeforeAgentStartEvent {
+  prompt: string;
+  messages?: unknown[];
 }
 
 /**
- * Hook handler type
+ * OpenClaw agent context interface
+ * See: openclaw/src/plugins/types.ts - PluginHookAgentContext
  */
-export type HookHandler = (event: HookEvent) => Promise<void> | void;
+export interface AgentContext {
+  agentId?: string;
+  sessionKey?: string;
+  workspaceDir?: string;
+  messageProvider?: string;
+}
+
+/**
+ * OpenClaw before_agent_start result interface
+ * See: openclaw/src/plugins/types.ts - PluginHookBeforeAgentStartResult
+ */
+export interface BeforeAgentStartResult {
+  systemPrompt?: string;
+  prependContext?: string;
+}
+
+/**
+ * Hook handler type for before_agent_start
+ */
+export type HookHandler = (
+  event: BeforeAgentStartEvent,
+  ctx: AgentContext
+) => Promise<BeforeAgentStartResult | void> | BeforeAgentStartResult | void;
 
 // Module-level state (initialized by plugin registration)
 let db: SqliteDb | null = null;
@@ -85,30 +98,11 @@ export function initAutoRecallHook(
 }
 
 /**
- * Extract the current prompt from hook event messages.
+ * Extract the current prompt from hook event.
+ * For before_agent_start, the prompt is directly available.
  */
-function extractPrompt(event: HookEvent): string | null {
-  if (!event.messages || event.messages.length === 0) {
-    return null;
-  }
-
-  // Find the last user message
-  for (let i = event.messages.length - 1; i >= 0; i--) {
-    const msg = event.messages[i];
-    if (msg.role === "user") {
-      if (typeof msg.content === "string") {
-        return msg.content;
-      }
-      if (Array.isArray(msg.content)) {
-        return msg.content
-          .filter((block) => block.type === "text")
-          .map((block) => block.text ?? "")
-          .join("\n");
-      }
-    }
-  }
-
-  return null;
+function extractPrompt(event: BeforeAgentStartEvent): string | null {
+  return event.prompt || null;
 }
 
 /**
@@ -268,15 +262,13 @@ function updateAccessStats(memoryId: string, lastAccessedAt: string, today: stri
 }
 
 /**
- * Hook handler for agent:bootstrap event.
- * Injects relevant memories into context.bootstrapFiles.
+ * Hook handler for before_agent_start event.
+ * Returns prependContext with relevant memories.
  */
-export const handler: HookHandler = async (event: HookEvent) => {
-  // Only handle agent:bootstrap events
-  if (event.type !== "agent:bootstrap") {
-    return;
-  }
-
+export const handler: HookHandler = async (
+  event: BeforeAgentStartEvent,
+  _ctx: AgentContext
+): Promise<BeforeAgentStartResult | void> => {
   // Check if initialized and enabled
   if (!db || !embeddingProvider || !vectorHelper || !config || !scorer || !allocator || !contextTool) {
     console.error("[TRAM] Auto-recall hook not initialized");
@@ -287,15 +279,7 @@ export const handler: HookHandler = async (event: HookEvent) => {
     return;
   }
 
-  // Ensure bootstrapFiles array exists
-  if (!event.context) {
-    return;
-  }
-  if (!event.context.bootstrapFiles) {
-    event.context.bootstrapFiles = [];
-  }
-
-  // Extract prompt from messages
+  // Extract prompt from event
   const prompt = extractPrompt(event);
   if (!prompt || prompt.trim().length === 0) {
     return;
@@ -321,10 +305,8 @@ export const handler: HookHandler = async (event: HookEvent) => {
     if (hybridResults.length === 0) {
       if (contextText) {
         const formatted = formatMemoriesAsXml([], contextText);
-        event.context.bootstrapFiles.push({
-          path: "MEMORIES.md",
-          content: formatted,
-        });
+        console.log("[TRAM] Injecting context (no memories matched)");
+        return { prependContext: formatted };
       }
       return;
     }
@@ -349,18 +331,15 @@ export const handler: HookHandler = async (event: HookEvent) => {
       updateAccessStats(memory.id, now.toISOString(), today);
     }
 
-    // Format and inject memories
+    // Format memories
     const selectedMemories = allocation.selected.map((sm) => sm.memory);
     const formattedXml = formatMemoriesAsXml(selectedMemories, contextText);
 
-    event.context.bootstrapFiles.push({
-      path: "MEMORIES.md",
-      content: formattedXml,
-    });
-
     console.log(`[TRAM] Injected ${selectedMemories.length} memories into context`);
+    return { prependContext: formattedXml };
   } catch (error) {
     console.error("[TRAM] Auto-recall error:", error);
+    return;
   }
 };
 
