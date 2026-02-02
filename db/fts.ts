@@ -81,6 +81,19 @@ export class FTS5Helper {
   }
 
   /**
+   * Sanitize a query for FTS5 by quoting hyphenated words.
+   * FTS5 interprets hyphens as column references or negation operators,
+   * so we wrap hyphenated words in double quotes to treat them as literals.
+   * @param query - The raw search query
+   * @returns The sanitized query safe for FTS5
+   */
+  private sanitizeFtsQuery(query: string): string {
+    // Match hyphenated words (word-word or word-word-word etc.) and wrap in quotes
+    // Negative lookahead ensures we don't double-quote already quoted terms
+    return query.replace(/(?<!")(\b\w+(?:-\w+)+\b)(?!")/g, '"$1"');
+  }
+
+  /**
    * Search memories using FTS5 with BM25 ranking.
    * @param query - The search query (FTS5 query syntax supported)
    * @param limit - Maximum number of results to return (default: 10)
@@ -90,6 +103,9 @@ export class FTS5Helper {
     if (!query || query.trim() === "") {
       return [];
     }
+
+    // Sanitize hyphenated words to prevent FTS5 parsing errors
+    const sanitizedQuery = this.sanitizeFtsQuery(query);
 
     // Prepare statement once and cache it
     if (!this.searchStmt) {
@@ -107,7 +123,7 @@ export class FTS5Helper {
     }
 
     try {
-      const results = this.searchStmt.all(query, limit) as Array<{
+      const results = this.searchStmt.all(sanitizedQuery, limit) as Array<{
         id: string;
         text: string;
         bm25_score: number;
@@ -122,8 +138,12 @@ export class FTS5Helper {
       }));
     } catch (error) {
       // Handle FTS query syntax errors gracefully
-      if (error instanceof Error && error.message.includes("fts5")) {
-        // Try escaping the query as a phrase search
+      // Catch FTS5 errors, column reference errors ("no such column"), and other syntax issues
+      if (error instanceof Error &&
+          (error.message.includes("fts5") ||
+           error.message.includes("no such column") ||
+           error.message.includes("syntax error"))) {
+        // Try escaping the entire query as a phrase search
         const escapedQuery = `"${query.replace(/"/g, '""')}"`;
         try {
           const results = this.searchStmt.all(escapedQuery, limit) as Array<{

@@ -794,6 +794,70 @@ describe("Database", () => {
       const results = fts.searchFTS('"Testing"', 10);
       expect(results.length).toBe(1);
     });
+
+    it("should handle hyphenated words without throwing column errors", () => {
+      const sqliteDb = db.getDb();
+      const memory = createTestMemory({ text: "This is a hands-off policy for auto-recall" });
+
+      const insertStmt = sqliteDb.prepare(`
+        INSERT INTO memories (id, text, importance, category, created_at, tier, memory_type, do_not_inject, pinned, use_count, last_accessed_at, use_days, source, parent_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      insertStmt.run(
+        memory.id,
+        memory.text,
+        memory.importance,
+        memory.category,
+        memory.created_at,
+        memory.tier,
+        memory.memory_type,
+        memory.do_not_inject ? 1 : 0,
+        memory.pinned ? 1 : 0,
+        memory.use_count,
+        memory.last_accessed_at,
+        JSON.stringify(memory.use_days),
+        memory.source,
+        memory.parent_id
+      );
+
+      // TRAM-009: Hyphenated words should not cause "no such column" errors
+      expect(() => {
+        fts.searchFTS("hands-off", 10);
+      }).not.toThrow();
+
+      // Should find the memory with hyphenated term
+      let results = fts.searchFTS("hands-off", 10);
+      expect(results.length).toBe(1);
+      expect(results[0].text).toContain("hands-off");
+
+      // Should also work with multiple hyphenated words
+      results = fts.searchFTS("hands-off auto-recall", 10);
+      expect(results.length).toBe(1);
+
+      // Compound hyphenated words should work
+      const memory2 = createTestMemory({ text: "A self-calibrating ultra-fast system" });
+      insertStmt.run(
+        memory2.id,
+        memory2.text,
+        memory2.importance,
+        memory2.category,
+        memory2.created_at,
+        memory2.tier,
+        memory2.memory_type,
+        memory2.do_not_inject ? 1 : 0,
+        memory2.pinned ? 1 : 0,
+        memory2.use_count,
+        memory2.last_accessed_at,
+        JSON.stringify(memory2.use_days),
+        memory2.source,
+        memory2.parent_id
+      );
+
+      results = fts.searchFTS("self-calibrating", 10);
+      expect(results.length).toBe(1);
+      expect(results[0].text).toContain("self-calibrating");
+    });
   });
 
   describe("current_context operations with TTL", () => {
