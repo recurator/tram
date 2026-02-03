@@ -53,6 +53,7 @@ import { initAutoCaptureHook } from "./hooks/auto-capture/handler.js";
 import { DecayEngine } from "./core/decay.js";
 import { PromotionEngine } from "./core/promotion.js";
 import { TuningEngine } from "./core/tuning.js";
+import { TuningReporter } from "./services/reporter.js";
 
 // Hook handlers
 import autoRecallHandler from "./hooks/auto-recall/handler.js";
@@ -284,6 +285,7 @@ class DecayService {
   private decayEngine: DecayEngine;
   private promotionEngine: PromotionEngine;
   private tuningEngine: TuningEngine;
+  private tuningReporter: TuningReporter;
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private intervalHours: number;
 
@@ -298,6 +300,7 @@ class DecayService {
     this.decayEngine = new DecayEngine(db, config);
     this.promotionEngine = new PromotionEngine(db, config);
     this.tuningEngine = new TuningEngine(db, config);
+    this.tuningReporter = new TuningReporter(db, config);
     this.intervalHours = config.decay.intervalHours;
   }
 
@@ -340,7 +343,15 @@ class DecayService {
     // Then run promotion engine (promote frequently-used memories)
     this.promotionEngine.run();
     // Finally run tuning engine (auto-adjust parameters based on tier sizes)
-    this.tuningEngine.run();
+    const tuningResult = this.tuningEngine.run();
+
+    // Report any tuning adjustments
+    if (tuningResult.adjusted) {
+      const tierCounts = this.tuningEngine.getTierCounts();
+      for (const adjustment of tuningResult.adjustments) {
+        this.tuningReporter.report(adjustment, tierCounts);
+      }
+    }
   }
 }
 
