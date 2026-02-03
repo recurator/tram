@@ -181,6 +181,26 @@ export const TuningModeSchema = z.enum(["auto", "manual", "hybrid"]);
 export type TuningModeValue = z.infer<typeof TuningModeSchema>;
 
 /**
+ * Reporting channel enum values.
+ * - telegram: Send notifications via Telegram bot
+ * - discord: Send notifications via Discord webhook
+ * - slack: Send notifications via Slack webhook
+ * - log: Write notifications to log file
+ * - none: Disable notifications
+ */
+export const ReportingChannelSchema = z.enum(["telegram", "discord", "slack", "log", "none"]);
+export type ReportingChannelValue = z.infer<typeof ReportingChannelSchema>;
+
+/**
+ * Reporting frequency enum values.
+ * - on-change: Send notification immediately when tuning changes occur
+ * - daily-summary: Batch notifications into a daily summary
+ * - weekly-summary: Batch notifications into a weekly summary
+ */
+export const ReportingFrequencySchema = z.enum(["on-change", "daily-summary", "weekly-summary"]);
+export type ReportingFrequencyValue = z.infer<typeof ReportingFrequencySchema>;
+
+/**
  * Per-session-type configuration.
  */
 export const SessionSettingsSchema = z.object({
@@ -264,6 +284,22 @@ export const TuningConfigSchema = z.object({
 export type TuningConfig = z.infer<typeof TuningConfigSchema>;
 
 /**
+ * Reporting configuration schema.
+ * Controls notifications when TRAM auto-tunes parameters.
+ */
+export const ReportingConfigSchema = z.object({
+  /** Whether reporting is enabled (default true) */
+  enabled: z.boolean().default(true),
+  /** Notification channel: telegram, discord, slack, log, or none (default log) */
+  channel: ReportingChannelSchema.default("log"),
+  /** Notification frequency: on-change, daily-summary, or weekly-summary (default on-change) */
+  frequency: ReportingFrequencySchema.default("on-change"),
+  /** Whether to include metrics in notifications (default true) */
+  includeMetrics: z.boolean().default(true),
+});
+export type ReportingConfig = z.infer<typeof ReportingConfigSchema>;
+
+/**
  * TTL override for a specific memory type.
  * - hotTTL: Hours before HOT memories demote (null = never demote)
  * - warmTTL: Days before WARM memories demote (null = never demote)
@@ -344,6 +380,8 @@ export const MemoryTieredConfigSchema = z.object({
   sessions: SessionsConfigSchema.optional(),
   /** Tuning settings for auto-adjustment */
   tuning: TuningConfigSchema.optional(),
+  /** Reporting settings for notifications */
+  reporting: ReportingConfigSchema.optional(),
 });
 
 export type MemoryTieredConfig = z.infer<typeof MemoryTieredConfigSchema>;
@@ -408,6 +446,12 @@ export interface ResolvedConfig {
     };
     lockDurationDays: number;
   };
+  reporting: {
+    enabled: boolean;
+    channel: ReportingChannelValue;
+    frequency: ReportingFrequencyValue;
+    includeMetrics: boolean;
+  };
 }
 
 /**
@@ -457,6 +501,12 @@ const DEFAULTS = {
       warmTargetSize: { min: 50, max: 200 },
     },
     lockDurationDays: 7,
+  },
+  reporting: {
+    enabled: true,
+    channel: "log" as const,
+    frequency: "on-change" as const,
+    includeMetrics: true,
   },
 } as const;
 
@@ -605,6 +655,12 @@ export function resolveConfig(config: MemoryTieredConfig): ResolvedConfig {
         },
       },
       lockDurationDays: config.tuning?.lockDurationDays ?? DEFAULTS.tuning.lockDurationDays,
+    },
+    reporting: {
+      enabled: config.reporting?.enabled ?? DEFAULTS.reporting.enabled,
+      channel: config.reporting?.channel ?? DEFAULTS.reporting.channel,
+      frequency: config.reporting?.frequency ?? DEFAULTS.reporting.frequency,
+      includeMetrics: config.reporting?.includeMetrics ?? DEFAULTS.reporting.includeMetrics,
     },
   };
 }
@@ -1137,6 +1193,44 @@ export const uiHints = {
         type: "number",
         min: 1,
         placeholder: "7",
+      },
+    },
+  },
+  reporting: {
+    label: "Reporting Settings",
+    description: "Configure notifications when TRAM auto-tunes parameters",
+    fields: {
+      enabled: {
+        label: "Enabled",
+        description: "Whether reporting is enabled",
+        type: "toggle",
+      },
+      channel: {
+        label: "Channel",
+        description: "Notification channel for tuning reports",
+        type: "select",
+        options: [
+          { value: "log", label: "Log File" },
+          { value: "telegram", label: "Telegram" },
+          { value: "discord", label: "Discord" },
+          { value: "slack", label: "Slack" },
+          { value: "none", label: "None (disabled)" },
+        ],
+      },
+      frequency: {
+        label: "Frequency",
+        description: "How often to send notifications",
+        type: "select",
+        options: [
+          { value: "on-change", label: "On Change (immediate)" },
+          { value: "daily-summary", label: "Daily Summary" },
+          { value: "weekly-summary", label: "Weekly Summary" },
+        ],
+      },
+      includeMetrics: {
+        label: "Include Metrics",
+        description: "Include detailed metrics in notifications",
+        type: "toggle",
       },
     },
   },
