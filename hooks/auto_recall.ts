@@ -35,6 +35,8 @@ export interface AutoRecallConfig {
   enabled: boolean;
   /** Maximum items to inject */
   maxItems: number;
+  /** Minimum composite score for memory to be injected (default: 0.2) */
+  minScore: number;
   /** Budget percentages for tier allocation */
   budgets: {
     pinned: number;
@@ -84,6 +86,7 @@ export class AutoRecallHook {
     this.config = {
       enabled: config.enabled ?? true,
       maxItems: config.maxItems ?? 20,
+      minScore: config.minScore ?? 0.2,
       budgets: {
         pinned: config.budgets?.pinned ?? 25,
         hot: config.budgets?.hot ?? 45,
@@ -194,11 +197,39 @@ export class AutoRecallHook {
       similarityMap.set(result.id, result.vectorScore);
     }
 
-    // Apply tier budget allocation to select memories
-    const allocation = this.allocator.allocate(memories, similarityMap);
+    // Filter candidates by minScore BEFORE tier budget allocation
+    // Score each memory and exclude those below the threshold
+    const now = new Date();
+    const filteredMemories = memories.filter((memory) => {
+      const similarity = similarityMap.get(memory.id) ?? 1;
+      const compositeScore = this.scorer.score(memory, similarity, now);
+      // Include memories at or above threshold (>= not >)
+      return compositeScore >= this.config.minScore;
+    });
+
+    process.stderr.write(`[TRAM] filtered by minScore (${this.config.minScore}): ${memories.length} -> ${filteredMemories.length}\n`);
+
+    // If all candidates were filtered out, check for current context
+    if (filteredMemories.length === 0) {
+      const currentContext = this.contextTool.getContext();
+      if (currentContext) {
+        const formatted = this.formatMemoriesAsXml([], currentContext.text);
+        return {
+          prependContext: formatted,
+          memoriesInjected: 0,
+          contextIncluded: true,
+        };
+      }
+      return {
+        memoriesInjected: 0,
+        contextIncluded: false,
+      };
+    }
+
+    // Apply tier budget allocation to select memories from filtered candidates
+    const allocation = this.allocator.allocate(filteredMemories, similarityMap);
 
     // Update access stats for selected memories
-    const now = new Date();
     const today = now.toISOString().split("T")[0]; // YYYY-MM-DD
 
     for (const { memory } of allocation.selected) {
@@ -450,6 +481,7 @@ export function createAutoRecallHook(
   return new AutoRecallHook(db, embeddingProvider, vectorHelper, {
     enabled: config.autoRecall,
     maxItems: config.injection.maxItems,
+    minScore: config.injection.minScore,
     budgets: config.injection.budgets,
     scoringWeights: {
       similarity: config.scoring.similarity,
