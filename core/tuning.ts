@@ -199,22 +199,34 @@ export class TuningEngine {
 
   /**
    * Check if a parameter is locked by user override.
+   * Checks the most recent tuning_log entry for this parameter.
+   * If the most recent entry has user_override_until set and it's in the future,
+   * the parameter is locked. If the most recent entry has no lock (null),
+   * the parameter is unlocked.
+   *
    * @param parameter - The parameter name to check
    * @returns True if the parameter is locked
    */
   isParameterLocked(parameter: string): boolean {
+    // Get the most recent entry for this parameter (regardless of lock status)
+    // Use rowid as tiebreaker for entries with same timestamp
     const stmt = this.db.prepare(`
       SELECT user_override_until
       FROM tuning_log
       WHERE parameter = ?
-        AND user_override_until IS NOT NULL
         AND reverted = 0
-      ORDER BY timestamp DESC
+      ORDER BY timestamp DESC, rowid DESC
       LIMIT 1
     `);
-    const row = stmt.get(parameter) as { user_override_until: string } | undefined;
+    const row = stmt.get(parameter) as { user_override_until: string | null } | undefined;
 
-    if (!row || !row.user_override_until) {
+    // No entry means no lock
+    if (!row) {
+      return false;
+    }
+
+    // Most recent entry has no lock (was unlocked)
+    if (!row.user_override_until) {
       return false;
     }
 

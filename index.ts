@@ -71,6 +71,7 @@ import { MemorySetContextCommand, MemoryClearContextCommand } from "./cli/contex
 import { MemoryDecayCommand } from "./cli/decay.js";
 import { MemoryIndexCommand } from "./cli/index.js";
 import { MemoryMigrateCommand } from "./cli/migrate.js";
+import { MemoryLockCommand } from "./cli/lock.js";
 
 /**
  * Commander.js Command interface (provided by OpenClaw)
@@ -568,6 +569,7 @@ const plugin: Plugin = {
     const decayCommand = new MemoryDecayCommand(db, config);
     const indexCommand = new MemoryIndexCommand(db, embeddingProvider, vectorHelper);
     const migrateCommand = new MemoryMigrateCommand(db, embeddingProvider, vectorHelper);
+    const lockCommand = new MemoryLockCommand(db, config);
 
     // Register CLI commands using Commander.js callback pattern
     // See: https://docs.openclaw.ai/plugin - CLI Registration section
@@ -767,8 +769,32 @@ const plugin: Plugin = {
             });
             console.log(result);
           });
+
+        // tram lock <parameter>
+        program
+          .command("tram-lock <parameter>")
+          .description("Lock a parameter to prevent auto-tuning")
+          .option("--json", "Output as JSON")
+          .action((parameter: string, opts: Record<string, unknown>) => {
+            const result = lockCommand.lock(parameter, {
+              json: opts.json as boolean | undefined,
+            });
+            console.log(result);
+          });
+
+        // tram unlock <parameter>
+        program
+          .command("tram-unlock <parameter>")
+          .description("Unlock a parameter to allow auto-tuning")
+          .option("--json", "Output as JSON")
+          .action((parameter: string, opts: Record<string, unknown>) => {
+            const result = lockCommand.unlock(parameter, {
+              json: opts.json as boolean | undefined,
+            });
+            console.log(result);
+          });
       },
-      { commands: ["tram-search", "tram-list", "tram-stats", "tram-forget", "tram-restore", "tram-pin", "tram-unpin", "tram-explain", "tram-set-context", "tram-clear-context", "tram-decay", "tram-index", "tram-migrate"] }
+      { commands: ["tram-search", "tram-list", "tram-stats", "tram-forget", "tram-restore", "tram-pin", "tram-unpin", "tram-explain", "tram-set-context", "tram-clear-context", "tram-decay", "tram-index", "tram-migrate", "tram-lock", "tram-unlock"] }
     );
 
     // Create and register the decay service
