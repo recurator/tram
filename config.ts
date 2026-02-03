@@ -172,6 +172,15 @@ export const SessionTypeSchema = z.enum(["main", "cron", "spawned"]);
 export type SessionTypeValue = z.infer<typeof SessionTypeSchema>;
 
 /**
+ * Tuning mode enum values.
+ * - auto: TRAM auto-adjusts parameters without user intervention
+ * - manual: User must manually adjust parameters
+ * - hybrid: TRAM suggests adjustments, auto-adjusts unless user has locked a parameter
+ */
+export const TuningModeSchema = z.enum(["auto", "manual", "hybrid"]);
+export type TuningModeValue = z.infer<typeof TuningModeSchema>;
+
+/**
  * Per-session-type configuration.
  */
 export const SessionSettingsSchema = z.object({
@@ -197,6 +206,62 @@ export const SessionsConfigSchema = z.object({
   spawned: SessionSettingsSchema.optional(),
 });
 export type SessionsConfig = z.infer<typeof SessionsConfigSchema>;
+
+/**
+ * Bounds schema for a tunable parameter.
+ * Defines min, max, and step values for auto-adjustment.
+ */
+export const TuningBoundsSchema = z.object({
+  /** Minimum allowed value */
+  min: z.number(),
+  /** Maximum allowed value */
+  max: z.number(),
+  /** Adjustment step size */
+  step: z.number(),
+});
+export type TuningBounds = z.infer<typeof TuningBoundsSchema>;
+
+/**
+ * Auto-adjust configuration for tier size targets.
+ * Specifies min/max target sizes for a tier.
+ */
+export const TierTargetSizeSchema = z.object({
+  /** Minimum target size for the tier */
+  min: z.number().min(0),
+  /** Maximum target size for the tier */
+  max: z.number().min(0),
+});
+export type TierTargetSize = z.infer<typeof TierTargetSizeSchema>;
+
+/**
+ * Auto-adjust settings for tuning parameters.
+ * Defines bounds and target sizes for automatic parameter adjustment.
+ */
+export const AutoAdjustConfigSchema = z.object({
+  /** Bounds for importanceThreshold parameter (used for tier promotion/demotion) */
+  importanceThreshold: TuningBoundsSchema.optional(),
+  /** Target size range for HOT tier */
+  hotTargetSize: TierTargetSizeSchema.optional(),
+  /** Target size range for WARM tier */
+  warmTargetSize: TierTargetSizeSchema.optional(),
+});
+export type AutoAdjustConfig = z.infer<typeof AutoAdjustConfigSchema>;
+
+/**
+ * Tuning configuration schema.
+ * Controls auto-adjustment behavior for memory tier management.
+ */
+export const TuningConfigSchema = z.object({
+  /** Whether tuning is enabled (default true) */
+  enabled: z.boolean().default(true),
+  /** Tuning mode: auto, manual, or hybrid (default hybrid) */
+  mode: TuningModeSchema.default("hybrid"),
+  /** Auto-adjustment settings with parameter bounds */
+  autoAdjust: AutoAdjustConfigSchema.optional(),
+  /** Days to lock a parameter after user override (default 7) */
+  lockDurationDays: z.number().min(1).default(7),
+});
+export type TuningConfig = z.infer<typeof TuningConfigSchema>;
 
 /**
  * TTL override for a specific memory type.
@@ -277,6 +342,8 @@ export const MemoryTieredConfigSchema = z.object({
   context: ContextConfigSchema.optional(),
   /** Per-session-type settings (main, cron, spawned) */
   sessions: SessionsConfigSchema.optional(),
+  /** Tuning settings for auto-adjustment */
+  tuning: TuningConfigSchema.optional(),
 });
 
 export type MemoryTieredConfig = z.infer<typeof MemoryTieredConfigSchema>;
@@ -331,6 +398,16 @@ export interface ResolvedConfig {
     cron: { defaultTier: TierValue; autoCapture: boolean; autoInject: boolean };
     spawned: { defaultTier: TierValue; autoCapture: boolean; autoInject: boolean };
   };
+  tuning: {
+    enabled: boolean;
+    mode: TuningModeValue;
+    autoAdjust: {
+      importanceThreshold: { min: number; max: number; step: number };
+      hotTargetSize: { min: number; max: number };
+      warmTargetSize: { min: number; max: number };
+    };
+    lockDurationDays: number;
+  };
 }
 
 /**
@@ -370,6 +447,16 @@ const DEFAULTS = {
     main: { defaultTier: "HOT" as const, autoCapture: true, autoInject: true },
     cron: { defaultTier: "COLD" as const, autoCapture: false, autoInject: true },
     spawned: { defaultTier: "WARM" as const, autoCapture: false, autoInject: true },
+  },
+  tuning: {
+    enabled: true,
+    mode: "hybrid" as const,
+    autoAdjust: {
+      importanceThreshold: { min: 0.1, max: 0.9, step: 0.05 },
+      hotTargetSize: { min: 10, max: 50 },
+      warmTargetSize: { min: 50, max: 200 },
+    },
+    lockDurationDays: 7,
   },
 } as const;
 
@@ -498,6 +585,26 @@ export function resolveConfig(config: MemoryTieredConfig): ResolvedConfig {
         autoCapture: config.sessions?.spawned?.autoCapture ?? DEFAULTS.sessions.spawned.autoCapture,
         autoInject: config.sessions?.spawned?.autoInject ?? DEFAULTS.sessions.spawned.autoInject,
       },
+    },
+    tuning: {
+      enabled: config.tuning?.enabled ?? DEFAULTS.tuning.enabled,
+      mode: config.tuning?.mode ?? DEFAULTS.tuning.mode,
+      autoAdjust: {
+        importanceThreshold: {
+          min: config.tuning?.autoAdjust?.importanceThreshold?.min ?? DEFAULTS.tuning.autoAdjust.importanceThreshold.min,
+          max: config.tuning?.autoAdjust?.importanceThreshold?.max ?? DEFAULTS.tuning.autoAdjust.importanceThreshold.max,
+          step: config.tuning?.autoAdjust?.importanceThreshold?.step ?? DEFAULTS.tuning.autoAdjust.importanceThreshold.step,
+        },
+        hotTargetSize: {
+          min: config.tuning?.autoAdjust?.hotTargetSize?.min ?? DEFAULTS.tuning.autoAdjust.hotTargetSize.min,
+          max: config.tuning?.autoAdjust?.hotTargetSize?.max ?? DEFAULTS.tuning.autoAdjust.hotTargetSize.max,
+        },
+        warmTargetSize: {
+          min: config.tuning?.autoAdjust?.warmTargetSize?.min ?? DEFAULTS.tuning.autoAdjust.warmTargetSize.min,
+          max: config.tuning?.autoAdjust?.warmTargetSize?.max ?? DEFAULTS.tuning.autoAdjust.warmTargetSize.max,
+        },
+      },
+      lockDurationDays: config.tuning?.lockDurationDays ?? DEFAULTS.tuning.lockDurationDays,
     },
   };
 }
@@ -930,6 +1037,106 @@ export const uiHints = {
             type: "toggle",
           },
         },
+      },
+    },
+  },
+  tuning: {
+    label: "Tuning Settings",
+    description: "Configure auto-adjustment behavior for memory tier management",
+    fields: {
+      enabled: {
+        label: "Enabled",
+        description: "Whether tuning is enabled",
+        type: "toggle",
+      },
+      mode: {
+        label: "Mode",
+        description: "Tuning mode: auto (fully automatic), manual (user only), hybrid (auto with user locks)",
+        type: "select",
+        options: [
+          { value: "auto", label: "Auto (fully automatic)" },
+          { value: "manual", label: "Manual (user only)" },
+          { value: "hybrid", label: "Hybrid (auto with user locks)" },
+        ],
+      },
+      autoAdjust: {
+        label: "Auto-Adjust Settings",
+        description: "Parameter bounds and target sizes for automatic adjustment",
+        fields: {
+          importanceThreshold: {
+            label: "Importance Threshold Bounds",
+            description: "Bounds for the importance threshold parameter",
+            fields: {
+              min: {
+                label: "Minimum",
+                description: "Minimum allowed value for importance threshold",
+                type: "slider",
+                min: 0,
+                max: 1,
+                step: 0.05,
+              },
+              max: {
+                label: "Maximum",
+                description: "Maximum allowed value for importance threshold",
+                type: "slider",
+                min: 0,
+                max: 1,
+                step: 0.05,
+              },
+              step: {
+                label: "Step",
+                description: "Adjustment step size",
+                type: "slider",
+                min: 0.01,
+                max: 0.2,
+                step: 0.01,
+              },
+            },
+          },
+          hotTargetSize: {
+            label: "HOT Tier Target Size",
+            description: "Target size range for HOT tier",
+            fields: {
+              min: {
+                label: "Minimum",
+                description: "Minimum target size for HOT tier",
+                type: "number",
+                min: 0,
+              },
+              max: {
+                label: "Maximum",
+                description: "Maximum target size for HOT tier",
+                type: "number",
+                min: 0,
+              },
+            },
+          },
+          warmTargetSize: {
+            label: "WARM Tier Target Size",
+            description: "Target size range for WARM tier",
+            fields: {
+              min: {
+                label: "Minimum",
+                description: "Minimum target size for WARM tier",
+                type: "number",
+                min: 0,
+              },
+              max: {
+                label: "Maximum",
+                description: "Maximum target size for WARM tier",
+                type: "number",
+                min: 0,
+              },
+            },
+          },
+        },
+      },
+      lockDurationDays: {
+        label: "Lock Duration (days)",
+        description: "Days to lock a parameter after user override",
+        type: "number",
+        min: 1,
+        placeholder: "7",
       },
     },
   },

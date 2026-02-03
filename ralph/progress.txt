@@ -21,7 +21,7 @@ Started: 2026-02-03
 | US-012 | Create tuning_log table | ✅ complete |
 | US-013 | Track proxy metrics post-injection | ✅ complete |
 | US-014 | Update access metrics on memory recall | ✅ complete |
-| US-015 | Add tuning config schema | pending |
+| US-015 | Add tuning config schema | ✅ complete |
 | US-016 | Add reporting config schema | pending |
 | US-017 | Implement auto-adjustment logic | pending |
 | US-018 | Log tuning changes | pending |
@@ -209,3 +209,17 @@ Started: 2026-02-03
   - Test patterns follow proxy_metrics.test.ts: helper functions for inserting/getting feedback entries
 ---
 
+
+## 2026-02-03 - US-015
+- What was implemented: Verified tuning config schema already present in config.ts
+- Files changed: None (already implemented)
+- **Learnings for future iterations:**
+  - TuningConfigSchema with enabled, mode, autoAdjust, and lockDurationDays was already added
+  - TuningModeSchema enum includes auto, manual, hybrid options
+  - AutoAdjustConfigSchema contains TuningBoundsSchema (min/max/step) and TierTargetSizeSchema (min/max)
+  - Defaults in DEFAULTS constant: enabled=true, mode="hybrid", lockDurationDays=7
+  - importanceThreshold bounds default: min=0.1, max=0.9, step=0.05
+  - hotTargetSize default: min=10, max=50
+  - warmTargetSize default: min=50, max=200
+  - resolveConfig() properly handles nested tuning.autoAdjust paths
+---
