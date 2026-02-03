@@ -15,7 +15,7 @@ Started: 2026-02-03
 | US-006 | Implement category-aware decay in DecayEngine | ✅ complete |
 | US-007 | Add sessions config schema | ✅ complete |
 | US-008 | Detect session type at runtime | ✅ complete |
-| US-009 | Session-aware auto-capture | pending |
+| US-009 | Session-aware auto-capture | ✅ complete |
 | US-010 | Session-aware default tier | pending |
 | US-011 | Create injection_feedback table | pending |
 | US-012 | Create tuning_log table | pending |
@@ -134,5 +134,17 @@ Started: 2026-02-03
   - getCurrentSessionType() exported for hooks that need to access session type later
   - The handler checks config.sessions[sessionType].autoInject/autoCapture before proceeding
   - SessionContext interface added to AgentContext to type the ctx.session field
+---
+
+## 2026-02-03 - US-009
+- What was implemented: Session-aware auto-capture that respects config.sessions[sessionType].autoCapture
+- Files changed: __tests__/auto_capture_session.test.ts (new)
+- **Learnings for future iterations:**
+  - The handler in hooks/auto-capture/handler.ts already implements session-aware auto-capture
+  - handler.ts checks both config.sessions[sessionType].autoCapture AND global config.autoCapture
+  - Returns early (no capture) when either setting is false for the current session type
+  - Default config: main={autoCapture:true}, cron={autoCapture:false}, spawned={autoCapture:false}
+  - memory_store tool is independent of session settings - always works regardless of autoCapture flag
+  - The PRD references hooks/auto_capture.ts but actual implementation is in hooks/auto-capture/handler.ts
 ---
 
