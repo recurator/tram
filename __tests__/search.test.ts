@@ -567,6 +567,57 @@ describe("Cosine Fallback", () => {
     // Opposite vector should have low/negative similarity (clamped to 0)
     expect(results[1].similarity).toBeLessThanOrEqual(0.1);
   });
+
+  it("should parse JSON-encoded embeddings (backward compatibility)", () => {
+    // This test verifies that embeddings stored as JSON strings (from sqlite-vec
+    // or other sources) can be parsed correctly by the cosine fallback
+    const memory = createTestMemory({ text: "JSON embedding test" });
+    insertMemory(db, memory);
+
+    const embedding = generateRandomEmbedding(dimensions);
+
+    // Directly insert JSON-encoded embedding (simulating sqlite-vec format)
+    const sqliteDb = db.getDb();
+    sqliteDb.prepare(`
+      INSERT OR REPLACE INTO memory_vectors (memory_id, embedding)
+      VALUES (?, ?)
+    `).run(memory.id, JSON.stringify(embedding));
+
+    // Vector search should parse the JSON and work correctly
+    const results = vectorHelper.vectorSearch(embedding, 10);
+
+    expect(results.length).toBe(1);
+    expect(results[0].id).toBe(memory.id);
+    // Should find exact match with similarity ~1.0
+    expect(results[0].similarity).toBeCloseTo(1.0, 2);
+  });
+
+  it("should handle mixed binary and JSON embeddings", () => {
+    // Test that both formats work in the same table
+    const memory1 = createTestMemory({ text: "Binary format memory" });
+    const memory2 = createTestMemory({ text: "JSON format memory" });
+    insertMemory(db, memory1);
+    insertMemory(db, memory2);
+
+    const embedding1 = generateRandomEmbedding(dimensions);
+    const embedding2 = generateRandomEmbedding(dimensions);
+
+    // Store first as binary (normal storeEmbedding path)
+    vectorHelper.storeEmbedding(memory1.id, embedding1);
+
+    // Store second as JSON directly (simulating sqlite-vec or migration scenario)
+    const sqliteDb = db.getDb();
+    sqliteDb.prepare(`
+      INSERT OR REPLACE INTO memory_vectors (memory_id, embedding)
+      VALUES (?, ?)
+    `).run(memory2.id, JSON.stringify(embedding2));
+
+    // Search should find both
+    const results = vectorHelper.vectorSearch(embedding1, 10);
+    expect(results.length).toBe(2);
+    expect(results[0].id).toBe(memory1.id);
+    expect(results[0].similarity).toBeCloseTo(1.0, 2);
+  });
 });
 
 describe("Hybrid Search", () => {
