@@ -126,3 +126,32 @@ export interface InjectionFeedback {
   /** When the feedback entry was created (ISO 8601) */
   created_at: string;
 }
+
+/**
+ * Source of a tuning change
+ */
+export type TuningSource = "auto" | "agent" | "user";
+
+/**
+ * Tuning log entry for tracking parameter adjustments
+ */
+export interface TuningLog {
+  /** Unique log entry identifier */
+  id: string;
+  /** When the tuning change occurred (ISO 8601) */
+  timestamp: string;
+  /** Name of the parameter that was changed */
+  parameter: string;
+  /** Previous value (JSON string) */
+  old_value: string;
+  /** New value (JSON string) */
+  new_value: string;
+  /** Human-readable reason for the change */
+  reason: string;
+  /** Source of the change: auto, agent, or user */
+  source: TuningSource;
+  /** If set, auto-tuning is locked until this timestamp (ISO 8601) */
+  user_override_until: string | null;
+  /** Whether this change has been reverted */
+  reverted: boolean;
+}
