@@ -29,7 +29,7 @@ Started: 2026-02-03
 | US-020 | Implement notification delivery | ✅ complete |
 | US-021 | Add memory_stats metrics dashboard | ✅ complete |
 | US-022 | Create benchmark dataset | ✅ complete |
-| US-023 | Implement benchmark runner | pending |
+| US-023 | Implement benchmark runner | ✅ complete |
 | US-024 | Document OpenClaw 2026.2.1 compatibility | pending |
 | US-025 | Assess before_tool_call integration | pending |
 
@@ -310,4 +310,18 @@ Started: 2026-02-03
   - Coverage should include edge cases: synonyms, temporal references, multi-type queries
   - Query categories help analyze which query types perform well/poorly in benchmarks
   - Dataset IDs use format "mem-{type}-{number}" for easy identification
+---
+
+## 2026-02-03 - US-023
+- What was implemented: Benchmark runner script for TRAM vs OpenClaw retrieval comparison
+- Files changed: tests/benchmark/run.ts (new), tests/benchmark/results.json (new)
+- **Learnings for future iterations:**
+  - Benchmark script uses mock embeddings (deterministic hash-based) for reproducibility without LLM API calls
+  - Test conditions are defined as config objects: scoringWeights, minScore, vectorWeight, textWeight
+  - IR metrics: Precision@K counts relevant in top K; Recall@K counts fraction of all relevant found; MRR is 1/rank of first relevant; nDCG normalizes against ideal ranking
+  - idcgAtK (ideal DCG) assumes all relevant items at top positions
+  - For benchmark scripts, create fresh in-memory database per condition to avoid state leakage
+  - Group query results by category base name (split on "-") for category breakdown analysis
+  - VectorHelper.hybridSearch combines FTS text matching with cosine similarity via configurable weights
+  - The benchmark infrastructure enables A/B testing different scoring strategies
 ---
