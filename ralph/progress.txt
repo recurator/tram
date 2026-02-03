@@ -26,7 +26,7 @@ Started: 2026-02-03
 | US-017 | Implement auto-adjustment logic | ✅ complete |
 | US-018 | Log tuning changes | ✅ complete |
 | US-019 | Implement user parameter lock | ✅ complete |
-| US-020 | Implement notification delivery | pending |
+| US-020 | Implement notification delivery | ✅ complete |
 | US-021 | Add memory_stats metrics dashboard | pending |
 | US-022 | Create benchmark dataset | pending |
 | US-023 | Implement benchmark runner | pending |
@@ -270,4 +270,18 @@ Started: 2026-02-03
   - SQLite ORDER BY timestamp DESC can be nondeterministic for same-millisecond entries; use rowid as tiebreaker
   - MemoryLockCommand uses config.tuning.lockDurationDays for lock expiration
   - LOCKABLE_PARAMETERS constant defines valid parameter names (currently only importanceThreshold)
+---
+
+## 2026-02-03 - US-020
+- What was implemented: TuningReporter for notification delivery when TRAM auto-tunes
+- Files changed: services/reporter.ts (new), index.ts, __tests__/reporter.test.ts (new)
+- **Learnings for future iterations:**
+  - New services go in the services/ directory (created for this story)
+  - TuningReporter is integrated into DecayService.runCycle() after TuningEngine.run()
+  - Channel delivery uses async fetch() for external webhooks (telegram, discord, slack) but synchronous for log
+  - When env vars aren't configured for a channel, fall back to log with a warning message
+  - Frequency modes (daily-summary, weekly-summary) batch notifications and check time boundaries
+  - For batching: don't auto-send when lastSummary is null (wait for explicit flush or time boundary)
+  - Test channel fallback by temporarily deleting env vars and restoring after test
+  - Use vi.spyOn(console, 'log') to capture log output for assertions
 ---
