@@ -96,3 +96,33 @@ export interface MemoryAudit {
   /** When the action occurred (ISO 8601) */
   created_at: string;
 }
+
+/**
+ * Injection feedback entry for tracking injection outcomes and usefulness metrics
+ */
+export interface InjectionFeedback {
+  /** Unique feedback entry identifier */
+  id: string;
+  /** ID of the injected memory */
+  memory_id: string;
+  /** Session key identifying the session where injection occurred */
+  session_key: string;
+  /** When the memory was injected (ISO 8601) */
+  injected_at: string;
+  /** Number of times this memory was accessed after injection */
+  access_frequency: number;
+  /** Outcome of the session (e.g., 'success', 'failure', 'partial') */
+  session_outcome: string | null;
+  /** Ratio of injected memories to total candidates */
+  injection_density: number;
+  /** Resistance to decay based on usage patterns */
+  decay_resistance: number | null;
+  /** Computed proxy score for usefulness (0.0 to 1.0) */
+  proxy_score: number | null;
+  /** Agent-provided score for usefulness (0.0 to 1.0) */
+  agent_score: number | null;
+  /** Agent-provided notes about usefulness */
+  agent_notes: string | null;
+  /** When the feedback entry was created (ISO 8601) */
+  created_at: string;
+}

@@ -99,6 +99,31 @@ export class Database {
         FOREIGN KEY (memory_id) REFERENCES memories(id) ON DELETE CASCADE
       )
     `);
+
+    // Create injection_feedback table for tracking injection outcomes
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS injection_feedback (
+        id TEXT PRIMARY KEY,
+        memory_id TEXT NOT NULL,
+        session_key TEXT NOT NULL,
+        injected_at TEXT NOT NULL,
+        access_frequency INTEGER NOT NULL DEFAULT 0,
+        session_outcome TEXT,
+        injection_density REAL NOT NULL DEFAULT 0,
+        decay_resistance REAL,
+        proxy_score REAL,
+        agent_score REAL,
+        agent_notes TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (memory_id) REFERENCES memories(id) ON DELETE CASCADE
+      )
+    `);
+
+    // Create indexes for injection_feedback
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_injection_feedback_memory_id ON injection_feedback(memory_id);
+      CREATE INDEX IF NOT EXISTS idx_injection_feedback_injected_at ON injection_feedback(injected_at);
+    `);
   }
 
   /**
