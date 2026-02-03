@@ -28,7 +28,7 @@ Started: 2026-02-03
 | US-019 | Implement user parameter lock | ✅ complete |
 | US-020 | Implement notification delivery | ✅ complete |
 | US-021 | Add memory_stats metrics dashboard | ✅ complete |
-| US-022 | Create benchmark dataset | pending |
+| US-022 | Create benchmark dataset | ✅ complete |
 | US-023 | Implement benchmark runner | pending |
 | US-024 | Document OpenClaw 2026.2.1 compatibility | pending |
 | US-025 | Assess before_tool_call integration | pending |
@@ -297,4 +297,17 @@ Started: 2026-02-03
   - Use toFixed() for numeric display formatting in CLI output
   - Status indicators (OK, ABOVE, BELOW) help users quickly see if values are within target ranges
   - Test patterns: create tables in beforeEach, use helper functions for inserts, test both JSON and text output
+---
+
+## 2026-02-03 - US-022
+- What was implemented: Created benchmark dataset for measuring TRAM retrieval quality
+- Files changed: tests/benchmark/dataset.json (new), tests/benchmark/queries.json (new)
+- **Learnings for future iterations:**
+  - Benchmark datasets are JSON files in tests/benchmark/ directory (not __tests__)
+  - Each memory in dataset.json needs: id, text, memory_type, ground_truth_queries
+  - Each query in queries.json needs: id, text, relevant_memory_ids, category
+  - The 4 memory types from core/types.ts: factual, procedural, episodic, project
+  - Coverage should include edge cases: synonyms, temporal references, multi-type queries
+  - Query categories help analyze which query types perform well/poorly in benchmarks
+  - Dataset IDs use format "mem-{type}-{number}" for easy identification
 ---
