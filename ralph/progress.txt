@@ -19,7 +19,7 @@ Started: 2026-02-03
 | US-010 | Session-aware default tier | ✅ complete |
 | US-011 | Create injection_feedback table | ✅ complete |
 | US-012 | Create tuning_log table | ✅ complete |
-| US-013 | Track proxy metrics post-injection | pending |
+| US-013 | Track proxy metrics post-injection | ✅ complete |
 | US-014 | Update access metrics on memory recall | pending |
 | US-015 | Add tuning config schema | pending |
 | US-016 | Add reporting config schema | pending |
@@ -182,5 +182,18 @@ Started: 2026-02-03
   - Indexes on timestamp and parameter columns for efficient lookup of recent changes and per-parameter history
   - TuningSource type added for type-safe source values
   - reverted column uses INTEGER (0/1) since SQLite has no native boolean type
+---
+
+## 2026-02-03 - US-013
+- What was implemented: Track proxy metrics post-injection by recording injection_feedback entries
+- Files changed: hooks/auto-recall/handler.ts, __tests__/proxy_metrics.test.ts (new)
+- **Learnings for future iterations:**
+  - recordInjectionMetrics function inserts injection_feedback for each injected memory
+  - Use setImmediate() to defer metrics recording so it doesn't block the injection response
+  - injection_density = injected_count / total_candidates (from hybridResults.length)
+  - session_key comes from ctx.sessionKey in AgentContext; defaults to "unknown" if not provided
+  - access_frequency starts at 0 and will be incremented by US-014 when memories are recalled
+  - TierBudgetAllocator with small maxItems (e.g., 2) may allocate 0 slots due to Math.floor() on percentages
+  - Test async behavior with flushSetImmediate() helper: `new Promise(resolve => setImmediate(resolve))`
 ---
 
