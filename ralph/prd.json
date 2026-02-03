@@ -326,8 +326,8 @@
         "Typecheck passes"
       ],
       "priority": 21,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented --metrics option for tram stats command. Shows injection usefulness summary, config vs targets comparison, and recent tuning log entries."
     },
     {
       "id": "US-022",

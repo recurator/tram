@@ -27,7 +27,7 @@ Started: 2026-02-03
 | US-018 | Log tuning changes | ✅ complete |
 | US-019 | Implement user parameter lock | ✅ complete |
 | US-020 | Implement notification delivery | ✅ complete |
-| US-021 | Add memory_stats metrics dashboard | pending |
+| US-021 | Add memory_stats metrics dashboard | ✅ complete |
 | US-022 | Create benchmark dataset | pending |
 | US-023 | Implement benchmark runner | pending |
 | US-024 | Document OpenClaw 2026.2.1 compatibility | pending |
@@ -284,4 +284,17 @@ Started: 2026-02-03
   - For batching: don't auto-send when lastSummary is null (wait for explicit flush or time boundary)
   - Test channel fallback by temporarily deleting env vars and restoring after test
   - Use vi.spyOn(console, 'log') to capture log output for assertions
+---
+
+## 2026-02-03 - US-021
+- What was implemented: Added --metrics option to tram stats command for tuning metrics dashboard
+- Files changed: cli/stats.ts, index.ts, __tests__/stats_metrics.test.ts (new)
+- **Learnings for future iterations:**
+  - CLI command options are added both in cli/*.ts class and in index.ts registerCli callback
+  - The stats command already had a pattern for optional data sections (contextStatus, embeddingInfo)
+  - For aggregate queries on optional tables, check if table exists with sqlite_master query first
+  - JSON values in tuning_log need JSON.parse() when reading and JSON.stringify() when writing
+  - Use toFixed() for numeric display formatting in CLI output
+  - Status indicators (OK, ABOVE, BELOW) help users quickly see if values are within target ranges
+  - Test patterns: create tables in beforeEach, use helper functions for inserts, test both JSON and text output
 ---
