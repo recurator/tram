@@ -10,7 +10,8 @@ import { VectorHelper } from "../../db/vectors.js";
 import { MemoryScorer } from "../../core/scorer.js";
 import { TierBudgetAllocator } from "../../core/injection.js";
 import { MemorySetContextTool } from "../../tools/memory_set_context.js";
-import type { ResolvedConfig } from "../../config.js";
+import type { ResolvedConfig, SessionTypeValue } from "../../config.js";
+import { randomUUID } from "crypto";
 
 /**
  * OpenClaw before_agent_start event interface
@@ -22,6 +23,14 @@ export interface BeforeAgentStartEvent {
 }
 
 /**
+ * OpenClaw session context interface
+ * See: openclaw/src/plugins/types.ts - PluginHookSessionContext
+ */
+export interface SessionContext {
+  type?: string;
+}
+
+/**
  * OpenClaw agent context interface
  * See: openclaw/src/plugins/types.ts - PluginHookAgentContext
  */
@@ -30,6 +39,7 @@ export interface AgentContext {
   sessionKey?: string;
   workspaceDir?: string;
   messageProvider?: string;
+  session?: SessionContext;
 }
 
 /**
@@ -49,6 +59,32 @@ export type HookHandler = (
   ctx: AgentContext
 ) => Promise<BeforeAgentStartResult | void> | BeforeAgentStartResult | void;
 
+// Valid session types (used for validation)
+const VALID_SESSION_TYPES: readonly SessionTypeValue[] = ["main", "cron", "spawned"] as const;
+
+/**
+ * Get the session type from the agent context.
+ * Validates the type against known session types and defaults to "main".
+ * @param ctx - The agent context from the hook event
+ * @returns The session type: "main", "cron", or "spawned"
+ */
+export function getSessionType(ctx: AgentContext): SessionTypeValue {
+  const sessionType = ctx.session?.type;
+
+  // Unknown/missing type defaults to main
+  if (!sessionType) {
+    return "main";
+  }
+
+  // Validate against known types
+  if (VALID_SESSION_TYPES.includes(sessionType as SessionTypeValue)) {
+    return sessionType as SessionTypeValue;
+  }
+
+  // Unknown type defaults to main
+  return "main";
+}
+
 // Module-level state (initialized by plugin registration)
 let db: SqliteDb | null = null;
 let embeddingProvider: EmbeddingProvider | null = null;
@@ -57,6 +93,7 @@ let config: ResolvedConfig | null = null;
 let scorer: MemoryScorer | null = null;
 let allocator: TierBudgetAllocator | null = null;
 let contextTool: MemorySetContextTool | null = null;
+let currentSessionType: SessionTypeValue = "main";
 
 /**
  * Initialize the hook with required dependencies.
@@ -262,12 +299,59 @@ function updateAccessStats(memoryId: string, lastAccessedAt: string, today: stri
 }
 
 /**
+ * Record injection feedback metrics for each injected memory.
+ * This is called asynchronously after injection to avoid blocking.
+ * @param injectedMemoryIds - Array of memory IDs that were injected
+ * @param totalCandidates - Total number of candidate memories before filtering
+ * @param sessionKey - Session key from the context
+ * @param injectedAt - ISO timestamp of when injection occurred
+ */
+function recordInjectionMetrics(
+  injectedMemoryIds: string[],
+  totalCandidates: number,
+  sessionKey: string,
+  injectedAt: string
+): void {
+  if (!db || injectedMemoryIds.length === 0) return;
+
+  try {
+    const injectionDensity = totalCandidates > 0
+      ? injectedMemoryIds.length / totalCandidates
+      : 0;
+
+    const now = new Date().toISOString();
+
+    const insertStmt = db.prepare(`
+      INSERT INTO injection_feedback (
+        id, memory_id, session_key, injected_at, access_frequency,
+        injection_density, created_at
+      ) VALUES (?, ?, ?, ?, 0, ?, ?)
+    `);
+
+    // Insert a feedback row for each injected memory
+    for (const memoryId of injectedMemoryIds) {
+      insertStmt.run(
+        randomUUID(),
+        memoryId,
+        sessionKey,
+        injectedAt,
+        injectionDensity,
+        now
+      );
+    }
+  } catch (error) {
+    // Log error but don't throw - metrics recording shouldn't break injection
+    console.error("[TRAM] Error recording injection metrics:", error);
+  }
+}
+
+/**
  * Hook handler for before_agent_start event.
  * Returns prependContext with relevant memories.
  */
 export const handler: HookHandler = async (
   event: BeforeAgentStartEvent,
-  _ctx: AgentContext
+  ctx: AgentContext
 ): Promise<BeforeAgentStartResult | void> => {
   // Check if initialized and enabled
   if (!db || !embeddingProvider || !vectorHelper || !config || !scorer || !allocator || !contextTool) {
@@ -276,6 +360,15 @@ export const handler: HookHandler = async (
   }
 
   if (!config.autoRecall) {
+    return;
+  }
+
+  // Detect session type from context
+  currentSessionType = getSessionType(ctx);
+
+  // Check if auto-inject is enabled for this session type
+  const sessionConfig = config.sessions[currentSessionType];
+  if (!sessionConfig.autoInject) {
     return;
   }
 
@@ -335,6 +428,17 @@ export const handler: HookHandler = async (
     const selectedMemories = allocation.selected.map((sm) => sm.memory);
     const formattedXml = formatMemoriesAsXml(selectedMemories, contextText);
 
+    // Record injection metrics asynchronously (don't block injection)
+    const injectedMemoryIds = selectedMemories.map((m) => m.id);
+    const totalCandidates = hybridResults.length;
+    const sessionKey = ctx.sessionKey ?? "unknown";
+    const injectedAt = now.toISOString();
+
+    // Use setImmediate to defer metrics recording
+    setImmediate(() => {
+      recordInjectionMetrics(injectedMemoryIds, totalCandidates, sessionKey, injectedAt);
+    });
+
     console.log(`[TRAM] Injected ${selectedMemories.length} memories into context`);
     return { prependContext: formattedXml };
   } catch (error) {
@@ -342,5 +446,14 @@ export const handler: HookHandler = async (
     return;
   }
 };
+
+/**
+ * Get the current session type detected from the last hook invocation.
+ * This provides hooks access to the session type via getCurrentSessionType().
+ * @returns The current session type: "main", "cron", or "spawned"
+ */
+export function getCurrentSessionType(): SessionTypeValue {
+  return currentSessionType;
+}
 
 export default handler;

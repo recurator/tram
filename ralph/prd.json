@@ -1,0 +1,396 @@
+{
+  "project": "TRAM",
+  "branchName": "ralph/tram-v0.2.0-intelligent-tuning",
+  "description": "TRAM v0.2.0 — Intelligent Memory Tuning: injection quality filtering, category-aware decay, session isolation, and self-tuning with notifications",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Add minScore to injection config schema",
+      "description": "As TRAM, I need a minScore configuration option so that low-relevance memories can be filtered before injection.",
+      "acceptanceCriteria": [
+        "InjectionConfigSchema in config.ts includes minScore: z.number().min(0).max(1).default(0.2)",
+        "Config validation accepts injection.minScore values between 0 and 1",
+        "Missing minScore defaults to 0.2",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Filter candidates by minScore in auto-recall",
+      "description": "As TRAM, I need to exclude memories below the minScore threshold so that only relevant memories enter the context.",
+      "acceptanceCriteria": [
+        "hooks/auto_recall.ts filters scored candidates where composite < config.injection.minScore",
+        "Filtering happens BEFORE tier budget allocation",
+        "Empty result set after filtering does not crash (returns empty injection)",
+        "Memories exactly at threshold ARE included (>=, not >)",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Expose full config schema to OpenClaw",
+      "description": "As an OpenClaw user, I need all TRAM settings visible in openclaw.json so that I can tune behavior without code changes.",
+      "acceptanceCriteria": [
+        "Plugin registration in index.ts exports complete config schema",
+        "uiHints provided for: injection.*, scoring.*, tiers.*, decay.*",
+        "Changes via openclaw.json take effect on restart",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Backward compatibility with boolean autoRecall",
+      "description": "As an existing user, I need autoRecall: true to still work so that my config doesn't break on upgrade.",
+      "acceptanceCriteria": [
+        "Config autoRecall: true enables auto-recall with all defaults",
+        "Config autoRecall: false disables auto-recall entirely",
+        "Config autoRecall: { minScore: 0.3, ... } uses specified values",
+        "No runtime errors for any valid v0.1.x config",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Add decay overrides config schema",
+      "description": "As TRAM, I need a decay.overrides map so that different memory types can have different TTLs.",
+      "acceptanceCriteria": [
+        "DecayConfigSchema includes overrides: z.record(z.object({ hotTTL, warmTTL }))",
+        "hotTTL and warmTTL accept number | null (null = no decay)",
+        "Valid keys match MemoryType enum: factual, procedural, episodic, project",
+        "decay.default provides fallback TTLs when no override exists",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Implement category-aware decay in DecayEngine",
+      "description": "As TRAM, I need the decay engine to check memory_type so that factual memories persist longer than episodic ones.",
+      "acceptanceCriteria": [
+        "core/decay.ts looks up TTL from config.decay.overrides[memory.memory_type]",
+        "Falls back to config.decay.default when no override exists",
+        "null TTL means memory never demotes from that tier",
+        "Audit log entry includes memory_type in context",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Add sessions config schema",
+      "description": "As TRAM, I need per-session-type configuration so that cron and spawned sessions behave differently from main.",
+      "acceptanceCriteria": [
+        "SessionsConfigSchema defines main, cron, spawned sections",
+        "Each section has: defaultTier, autoCapture, autoInject",
+        "Defaults: main={HOT, true, true}, cron={COLD, false, true}, spawned={WARM, false, true}",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Detect session type at runtime",
+      "description": "As TRAM, I need to identify the current session type so that appropriate config applies.",
+      "acceptanceCriteria": [
+        "Session type detected from OpenClaw context: context.session.type",
+        "Valid types: main, cron, spawned",
+        "Unknown/missing type defaults to main",
+        "Session type available to hooks via this.sessionType",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Session-aware auto-capture",
+      "description": "As TRAM, I need auto-capture to respect session settings so that cron jobs don't pollute HOT tier.",
+      "acceptanceCriteria": [
+        "hooks/auto_capture.ts checks config.sessions[sessionType].autoCapture",
+        "When false, auto-capture hook returns early (no capture)",
+        "Manual memory_store still works regardless of setting",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Session-aware default tier",
+      "description": "As TRAM, I need captured memories to use the session's default tier so that cron data starts in COLD.",
+      "acceptanceCriteria": [
+        "Auto-captured memories use config.sessions[sessionType].defaultTier",
+        "memory_store without explicit tier uses session default",
+        "memory_store(tier=HOT) overrides session default",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 10,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Create injection_feedback table",
+      "description": "As TRAM, I need a table to track injection outcomes so that usefulness can be measured.",
+      "acceptanceCriteria": [
+        "Migration creates injection_feedback table with columns: id, memory_id, session_key, injected_at, access_frequency, session_outcome, injection_density, decay_resistance, proxy_score, agent_score, agent_notes, created_at",
+        "Foreign key to memories(id) with ON DELETE CASCADE",
+        "Index on memory_id for lookup performance",
+        "Index on injected_at for time-range queries",
+        "Migration is idempotent (safe to run twice)",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Create tuning_log table",
+      "description": "As TRAM, I need a table to record tuning changes so that adjustments are auditable.",
+      "acceptanceCriteria": [
+        "Migration creates tuning_log table with columns: id, timestamp, parameter, old_value, new_value, reason, source, user_override_until, reverted",
+        "source column accepts: auto, agent, user",
+        "user_override_until is nullable (null = not locked)",
+        "Migration is idempotent",
+        "Typecheck passes"
+      ],
+      "priority": 12,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Track proxy metrics post-injection",
+      "description": "As TRAM, I need to record proxy metrics after each injection so that usefulness can be computed.",
+      "acceptanceCriteria": [
+        "After auto-recall completes, record injection_feedback for each injected memory",
+        "injection_density = injected_count / total_candidates",
+        "session_key from current session context",
+        "Metrics recorded asynchronously (don't block injection)",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 13,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Update access metrics on memory recall",
+      "description": "As TRAM, I need to update access_frequency when memories are used so that usefulness signal accumulates.",
+      "acceptanceCriteria": [
+        "When memory_recall tool returns a memory, increment its feedback access_frequency",
+        "Find feedback row by memory_id + most recent injected_at",
+        "If no feedback row exists, skip (memory wasn't auto-injected)",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 14,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "Add tuning config schema",
+      "description": "As TRAM, I need tuning configuration options so that auto-adjustment behavior is configurable.",
+      "acceptanceCriteria": [
+        "TuningConfigSchema includes enabled, mode, autoAdjust, lockDurationDays",
+        "mode enum: auto, manual, hybrid",
+        "autoAdjust includes bounds for importanceThreshold, hotTargetSize, warmTargetSize",
+        "Defaults: enabled=true, mode=hybrid, lockDurationDays=7",
+        "Typecheck passes"
+      ],
+      "priority": 15,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-016",
+      "title": "Add reporting config schema",
+      "description": "As TRAM, I need reporting configuration so that users control notifications.",
+      "acceptanceCriteria": [
+        "ReportingConfigSchema includes enabled, channel, frequency, includeMetrics",
+        "channel enum: telegram, discord, slack, log, none",
+        "frequency enum: on-change, daily-summary, weekly-summary",
+        "Defaults: enabled=true, channel=log, frequency=on-change",
+        "Typecheck passes"
+      ],
+      "priority": 16,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-017",
+      "title": "Implement auto-adjustment logic",
+      "description": "As TRAM, I need to auto-adjust parameters when tier sizes drift so that memory quality stays optimal.",
+      "acceptanceCriteria": [
+        "New file core/tuning.ts with TuningEngine class",
+        "Checks tier sizes during decay run (piggyback on existing cron)",
+        "If HOT > hotTargetSize.max, increase importanceThreshold by step",
+        "If HOT < hotTargetSize.min, decrease importanceThreshold by step",
+        "Respects tuning.autoAdjust bounds (never exceed min/max)",
+        "Only adjusts when tuning.mode is auto or hybrid",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 17,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-018",
+      "title": "Log tuning changes",
+      "description": "As TRAM, I need to log all tuning changes so that adjustments are auditable and reversible.",
+      "acceptanceCriteria": [
+        "Every parameter change creates tuning_log entry",
+        "Entry includes: parameter, old_value, new_value, reason, source, timestamp",
+        "reason is human-readable (e.g., HOT tier exceeded target (45 > 30))",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 18,
+      "passes": true,
+      "notes": "Implemented as part of US-017. TuningEngine.logTuningChange() creates entries with all required fields."
+    },
+    {
+      "id": "US-019",
+      "title": "Implement user parameter lock",
+      "description": "As a user, I need to lock parameters from auto-tuning so that my preferences are respected.",
+      "acceptanceCriteria": [
+        "CLI command: tram lock <parameter> sets user_override_until in tuning_log",
+        "Locked duration from config.tuning.lockDurationDays",
+        "CLI command: tram unlock <parameter> clears the lock",
+        "TuningEngine skips locked parameters",
+        "Expired locks are ignored (auto-tuning resumes)",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 19,
+      "passes": true,
+      "notes": "Implemented MemoryLockCommand with tram-lock and tram-unlock CLI commands. Fixed isParameterLocked to properly check most recent entry."
+    },
+    {
+      "id": "US-020",
+      "title": "Implement notification delivery",
+      "description": "As a user, I need to receive notifications when TRAM auto-tunes so that I understand what changed.",
+      "acceptanceCriteria": [
+        "New file services/reporter.ts with TuningReporter class",
+        "Formats message: parameter, old value, new value, reason, stats",
+        "Delivers via configured channel (telegram, log, etc.)",
+        "on-change: immediate notification",
+        "daily-summary: batches changes, sends once per day",
+        "Respects reporting.enabled setting",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 20,
+      "passes": true,
+      "notes": "Implemented TuningReporter with channel delivery (log, telegram, discord, slack, none), frequency modes (on-change, daily-summary, weekly-summary), and integrated with DecayService."
+    },
+    {
+      "id": "US-021",
+      "title": "Add memory_stats metrics dashboard",
+      "description": "As a user, I need to view tuning metrics so that I can understand TRAM's behavior.",
+      "acceptanceCriteria": [
+        "tram stats --metrics shows injection usefulness summary",
+        "Shows: avg proxy_score, total injections, adjustment count",
+        "Shows current config values vs targets",
+        "Shows recent tuning_log entries",
+        "Typecheck passes"
+      ],
+      "priority": 21,
+      "passes": true,
+      "notes": "Implemented --metrics option for tram stats command. Shows injection usefulness summary, config vs targets comparison, and recent tuning log entries."
+    },
+    {
+      "id": "US-022",
+      "title": "Create benchmark dataset",
+      "description": "As a tester, I need a curated dataset so that retrieval quality can be measured reproducibly.",
+      "acceptanceCriteria": [
+        "File tests/benchmark/dataset.json with 50-100 memories",
+        "Each memory has: id, text, memory_type, ground_truth_queries",
+        "File tests/benchmark/queries.json with 30-50 test queries",
+        "Each query has: id, text, relevant_memory_ids",
+        "Coverage: factual, procedural, episodic, project types",
+        "Edge cases: synonyms, temporal, negation queries",
+        "Typecheck passes"
+      ],
+      "priority": 22,
+      "passes": true,
+      "notes": "Created dataset.json with 85 memories (25 factual, 20 procedural, 20 episodic, 20 project) and queries.json with 50 test queries covering direct, synonym, temporal, and multi-type categories."
+    },
+    {
+      "id": "US-023",
+      "title": "Implement benchmark runner",
+      "description": "As a tester, I need a benchmark script so that I can compare TRAM vs OpenClaw memory.",
+      "acceptanceCriteria": [
+        "Script tests/benchmark/run.ts executes all test conditions",
+        "Conditions: TRAM default, TRAM similarity-heavy, TRAM+minScore, OpenClaw default, OpenClaw vector-only",
+        "Computes: Precision@5, Precision@10, Recall@10, MRR, nDCG",
+        "Outputs results to tests/benchmark/results.json",
+        "Human-readable summary to stdout",
+        "Typecheck passes"
+      ],
+      "priority": 23,
+      "passes": true,
+      "notes": "Implemented benchmark runner with mock embeddings, 5 test conditions, full metrics calculation (Precision@K, Recall@K, MRR, nDCG), JSON results output, and category breakdown in stdout summary."
+    },
+    {
+      "id": "US-024",
+      "title": "Document OpenClaw 2026.2.1 compatibility",
+      "description": "As a maintainer, I need compatibility notes so that TRAM works with the latest OpenClaw.",
+      "acceptanceCriteria": [
+        "File docs/openclaw-2026.2.1-compat.md created",
+        "Documents before_tool_call hook assessment",
+        "Documents L2 normalization verification",
+        "Documents any required TRAM changes",
+        "Includes test commands to verify compatibility"
+      ],
+      "priority": 24,
+      "passes": true,
+      "notes": "Created comprehensive compatibility document covering hook system assessment, L2 normalization verification, test commands, and version compatibility matrix."
+    },
+    {
+      "id": "US-025",
+      "title": "Assess before_tool_call integration",
+      "description": "As a developer, I need to evaluate whether TRAM should use the new hook so that tool-specific context injection is possible.",
+      "acceptanceCriteria": [
+        "Research PR #6570, #6660 for API details documented",
+        "Document: hook signature, when it fires, available context",
+        "Prototype: inject memories relevant to tool being called (if feasible)",
+        "Recommendation: implement now, defer, or skip with rationale",
+        "Assessment added to docs/openclaw-2026.2.1-compat.md"
+      ],
+      "priority": 25,
+      "passes": true,
+      "notes": "Created working prototype at hooks/before-tool-call/handler.ts. Comprehensive API documentation added. Recommendation: Defer to v0.3.0 based on performance analysis and unclear user demand."
+    }
+  ]
+}

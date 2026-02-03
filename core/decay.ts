@@ -2,17 +2,18 @@
  * DecayEngine - Background decay service for automatic tier demotion.
  *
  * Rules:
- *   - HOT memories past 72 hours → COLD
- *   - WARM memories unused > 60 days → COLD
+ *   - HOT memories past hotTTL hours → COLD (configurable per memory type)
+ *   - WARM memories unused > warmTTL days → COLD (configurable per memory type)
  *   - Pinned memories never decay
- *   - Creates audit log entries for all demotions
+ *   - null TTL means memory never demotes from that tier
+ *   - Creates audit log entries for all demotions (includes memory_type)
  *   - Stores last_decay_run timestamp in DB meta table
  */
 
 import { randomUUID } from "node:crypto";
 import type { Database as SqliteDb } from "better-sqlite3";
 import { Tier, type Memory, MemoryType } from "./types.js";
-import type { ResolvedConfig } from "../config.js";
+import type { ResolvedConfig, MemoryTypeValue } from "../config.js";
 
 /**
  * Result from running the decay engine
@@ -37,15 +38,16 @@ interface MemoryRow {
   pinned: number;
   created_at: string;
   last_accessed_at: string;
+  memory_type: MemoryTypeValue;
 }
 
 /**
  * DecayEngine handles automatic tier demotion based on time and usage.
+ * Supports category-aware decay with per-memory-type TTL overrides.
  */
 export class DecayEngine {
   private db: SqliteDb;
-  private hotTtlHours: number;
-  private warmDemotionDays: number;
+  private decayConfig: ResolvedConfig["decay"];
 
   /**
    * Create a new DecayEngine instance.
@@ -54,13 +56,44 @@ export class DecayEngine {
    */
   constructor(db: SqliteDb, config?: Partial<ResolvedConfig>) {
     this.db = db;
-    // Default: 72 hours for HOT TTL
-    this.hotTtlHours = config?.tiers?.hot?.ttlHours ?? 72;
-    // Default: 60 days for WARM demotion
-    this.warmDemotionDays = config?.tiers?.warm?.demotionDays ?? 60;
+    // Store the full decay config for category-aware TTL lookups
+    this.decayConfig = {
+      intervalHours: config?.decay?.intervalHours ?? 6,
+      default: {
+        hotTTL: config?.decay?.default?.hotTTL ?? 72,
+        warmTTL: config?.decay?.default?.warmTTL ?? 60,
+      },
+      overrides: config?.decay?.overrides ?? ({} as Record<MemoryTypeValue, { hotTTL: number | null; warmTTL: number | null }>),
+    };
 
     // Ensure meta table exists for storing last_decay_run
     this.ensureMetaTable();
+  }
+
+  /**
+   * Get the HOT TTL for a memory type.
+   * @param memoryType - The memory type to look up
+   * @returns Hours before HOT demotes, or null if should never demote
+   */
+  private getHotTTL(memoryType: MemoryTypeValue): number | null {
+    const override = this.decayConfig.overrides[memoryType];
+    if (override !== undefined) {
+      return override.hotTTL;
+    }
+    return this.decayConfig.default.hotTTL;
+  }
+
+  /**
+   * Get the WARM TTL for a memory type.
+   * @param memoryType - The memory type to look up
+   * @returns Days before WARM demotes, or null if should never demote
+   */
+  private getWarmTTL(memoryType: MemoryTypeValue): number | null {
+    const override = this.decayConfig.overrides[memoryType];
+    if (override !== undefined) {
+      return override.warmTTL;
+    }
+    return this.decayConfig.default.warmTTL;
   }
 
   /**
@@ -80,7 +113,7 @@ export class DecayEngine {
     for (const memory of hotMemories) {
       totalProcessed++;
       if (this.shouldDemoteHot(memory, now)) {
-        this.demoteMemory(memory.id, Tier.HOT, Tier.COLD, nowIso);
+        this.demoteMemory(memory.id, Tier.HOT, Tier.COLD, memory.memory_type, nowIso);
         hotDemoted++;
       }
     }
@@ -90,7 +123,7 @@ export class DecayEngine {
     for (const memory of warmMemories) {
       totalProcessed++;
       if (this.shouldDemoteWarm(memory, now)) {
-        this.demoteMemory(memory.id, Tier.WARM, Tier.COLD, nowIso);
+        this.demoteMemory(memory.id, Tier.WARM, Tier.COLD, memory.memory_type, nowIso);
         warmDemoted++;
       }
     }
@@ -161,7 +194,7 @@ export class DecayEngine {
    */
   private fetchMemoriesByTier(tier: Tier): MemoryRow[] {
     const stmt = this.db.prepare(`
-      SELECT id, tier, pinned, created_at, last_accessed_at
+      SELECT id, tier, pinned, created_at, last_accessed_at, memory_type
       FROM memories
       WHERE tier = ? AND pinned = 0
     `);
@@ -170,29 +203,41 @@ export class DecayEngine {
 
   /**
    * Check if a HOT memory should be demoted.
-   * Rule: HOT memories past hotTtlHours (default 72) → COLD
+   * Rule: HOT memories past hotTTL hours → COLD
+   * TTL is looked up per memory type; null TTL means never demote.
    * @param memory - The memory row
    * @param now - Current time
    * @returns True if should demote
    */
   private shouldDemoteHot(memory: MemoryRow, now: Date): boolean {
+    const hotTTL = this.getHotTTL(memory.memory_type);
+    // null TTL means never demote from this tier
+    if (hotTTL === null) {
+      return false;
+    }
     const createdAt = new Date(memory.created_at);
     const ageHours = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
-    return ageHours > this.hotTtlHours;
+    return ageHours > hotTTL;
   }
 
   /**
    * Check if a WARM memory should be demoted.
-   * Rule: WARM memories unused > warmDemotionDays (default 60) → COLD
+   * Rule: WARM memories unused > warmTTL days → COLD
+   * TTL is looked up per memory type; null TTL means never demote.
    * @param memory - The memory row
    * @param now - Current time
    * @returns True if should demote
    */
   private shouldDemoteWarm(memory: MemoryRow, now: Date): boolean {
+    const warmTTL = this.getWarmTTL(memory.memory_type);
+    // null TTL means never demote from this tier
+    if (warmTTL === null) {
+      return false;
+    }
     const lastAccessedAt = new Date(memory.last_accessed_at);
     const inactiveDays =
       (now.getTime() - lastAccessedAt.getTime()) / (1000 * 60 * 60 * 24);
-    return inactiveDays > this.warmDemotionDays;
+    return inactiveDays > warmTTL;
   }
 
   /**
@@ -200,12 +245,14 @@ export class DecayEngine {
    * @param memoryId - The memory ID
    * @param fromTier - Original tier
    * @param toTier - Target tier
+   * @param memoryType - The memory's type (for audit context)
    * @param timestamp - ISO timestamp for the demotion
    */
   private demoteMemory(
     memoryId: string,
     fromTier: Tier,
     toTier: Tier,
+    memoryType: MemoryTypeValue,
     timestamp: string
   ): void {
     // Update the tier
@@ -216,12 +263,12 @@ export class DecayEngine {
     `);
     updateStmt.run(toTier, memoryId);
 
-    // Create audit entry
+    // Create audit entry with memory_type in context
     this.createAuditEntry(
       memoryId,
       "demote",
-      JSON.stringify({ tier: fromTier }),
-      JSON.stringify({ tier: toTier }),
+      JSON.stringify({ tier: fromTier, memory_type: memoryType }),
+      JSON.stringify({ tier: toTier, memory_type: memoryType }),
       timestamp
     );
   }

@@ -15,7 +15,7 @@ import { VectorHelper } from "../db/vectors.js";
 export interface MemoryStoreInput {
   /** The memory content text (required) */
   text: string;
-  /** Initial tier placement (default: HOT) */
+  /** Initial tier placement (default: session's defaultTier or HOT) */
   tier?: "HOT" | "WARM";
   /** Type of memory affecting decay rate */
   memory_type?: "procedural" | "factual" | "project" | "episodic";
@@ -27,6 +27,8 @@ export interface MemoryStoreInput {
   category?: string;
   /** Origin of the memory */
   source?: string;
+  /** Internal: session's default tier (used when tier is not specified) */
+  _sessionDefaultTier?: "HOT" | "WARM" | "COLD" | "ARCHIVE";
 }
 
 /**
@@ -208,8 +210,8 @@ export class MemoryStoreTool {
     const now = new Date().toISOString();
     const today = now.split("T")[0]; // YYYY-MM-DD
 
-    const tier =
-      input.tier === "WARM" ? Tier.WARM : Tier.HOT;
+    // Use explicit tier if provided, otherwise use session default, otherwise HOT
+    const tier = this.resolveTier(input.tier, input._sessionDefaultTier);
     const memoryType = this.parseMemoryType(input.memory_type);
     const importance = this.clampImportance(input.importance ?? 0.5);
     const pinned = input.pinned ?? false;
@@ -282,6 +284,42 @@ export class MemoryStoreTool {
    */
   private clampImportance(value: number): number {
     return Math.max(0, Math.min(1, value));
+  }
+
+  /**
+   * Resolve the tier to use for a new memory.
+   * Priority: explicit tier > session default > HOT
+   * @param explicitTier - Tier explicitly provided by the user
+   * @param sessionDefaultTier - Session's default tier from config
+   * @returns The resolved Tier enum value
+   */
+  private resolveTier(
+    explicitTier?: "HOT" | "WARM",
+    sessionDefaultTier?: "HOT" | "WARM" | "COLD" | "ARCHIVE"
+  ): Tier {
+    // If explicit tier provided, use it (this overrides session default)
+    if (explicitTier !== undefined) {
+      return explicitTier === "WARM" ? Tier.WARM : Tier.HOT;
+    }
+
+    // If session default is set, use it
+    if (sessionDefaultTier !== undefined) {
+      switch (sessionDefaultTier) {
+        case "HOT":
+          return Tier.HOT;
+        case "WARM":
+          return Tier.WARM;
+        case "COLD":
+          return Tier.COLD;
+        case "ARCHIVE":
+          return Tier.ARCHIVE;
+        default:
+          return Tier.HOT;
+      }
+    }
+
+    // Default to HOT
+    return Tier.HOT;
   }
 }
 

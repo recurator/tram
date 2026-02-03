@@ -249,6 +249,7 @@ export class MemoryRecallTool {
   /**
    * Update access statistics for a memory.
    * Increments use_count, updates last_accessed_at, and adds today to use_days if not present.
+   * Also updates access_frequency in injection_feedback if the memory was auto-injected.
    * @param memoryId - The memory ID
    * @param lastAccessedAt - ISO timestamp of access
    * @param today - Today's date in YYYY-MM-DD format
@@ -284,6 +285,39 @@ export class MemoryRecallTool {
     `);
 
     updateStmt.run(lastAccessedAt, JSON.stringify(useDays), memoryId);
+
+    // Update access_frequency in injection_feedback for the most recent injection
+    this.updateInjectionFeedbackAccessFrequency(memoryId);
+  }
+
+  /**
+   * Increment access_frequency for the most recent injection_feedback entry for a memory.
+   * If no feedback entry exists, skip (memory wasn't auto-injected).
+   * @param memoryId - The memory ID
+   */
+  private updateInjectionFeedbackAccessFrequency(memoryId: string): void {
+    // Find the most recent injection_feedback entry by memory_id + injected_at
+    const findStmt = this.db.prepare(`
+      SELECT id FROM injection_feedback
+      WHERE memory_id = ?
+      ORDER BY injected_at DESC
+      LIMIT 1
+    `);
+
+    const feedbackRow = findStmt.get(memoryId) as { id: string } | undefined;
+
+    if (!feedbackRow) {
+      return; // No feedback entry exists, memory wasn't auto-injected
+    }
+
+    // Increment access_frequency
+    const updateStmt = this.db.prepare(`
+      UPDATE injection_feedback
+      SET access_frequency = access_frequency + 1
+      WHERE id = ?
+    `);
+
+    updateStmt.run(feedbackRow.id);
   }
 }
 

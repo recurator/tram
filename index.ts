@@ -52,10 +52,12 @@ import { initAutoCaptureHook } from "./hooks/auto-capture/handler.js";
 
 import { DecayEngine } from "./core/decay.js";
 import { PromotionEngine } from "./core/promotion.js";
+import { TuningEngine } from "./core/tuning.js";
+import { TuningReporter } from "./services/reporter.js";
 
 // Hook handlers
 import autoRecallHandler from "./hooks/auto-recall/handler.js";
-import autoCaptureHandler from "./hooks/auto-capture/handler.js";
+import autoCaptureHandler, { getCurrentSessionType } from "./hooks/auto-capture/handler.js";
 
 // CLI command imports
 import { MemorySearchCommand } from "./cli/search.js";
@@ -70,6 +72,7 @@ import { MemorySetContextCommand, MemoryClearContextCommand } from "./cli/contex
 import { MemoryDecayCommand } from "./cli/decay.js";
 import { MemoryIndexCommand } from "./cli/index.js";
 import { MemoryMigrateCommand } from "./cli/migrate.js";
+import { MemoryLockCommand } from "./cli/lock.js";
 
 /**
  * Commander.js Command interface (provided by OpenClaw)
@@ -271,16 +274,18 @@ function createEmbeddingProvider(config: ResolvedConfig): EmbeddingProvider {
 }
 
 /**
- * DecayService - Background service for automatic memory tier decay and promotion.
+ * DecayService - Background service for automatic memory tier decay, promotion, and tuning.
  *
- * This service runs the DecayEngine and PromotionEngine on a configurable interval
- * to automatically demote stale memories and promote frequently-used ones.
+ * This service runs the DecayEngine, PromotionEngine, and TuningEngine on a configurable interval
+ * to automatically demote stale memories, promote frequently-used ones, and auto-adjust parameters.
  */
 class DecayService {
   private db: ReturnType<Database["getDb"]>;
   private config: ResolvedConfig;
   private decayEngine: DecayEngine;
   private promotionEngine: PromotionEngine;
+  private tuningEngine: TuningEngine;
+  private tuningReporter: TuningReporter;
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private intervalHours: number;
 
@@ -294,6 +299,8 @@ class DecayService {
     this.config = config;
     this.decayEngine = new DecayEngine(db, config);
     this.promotionEngine = new PromotionEngine(db, config);
+    this.tuningEngine = new TuningEngine(db, config);
+    this.tuningReporter = new TuningReporter(db, config);
     this.intervalHours = config.decay.intervalHours;
   }
 
@@ -327,7 +334,7 @@ class DecayService {
   }
 
   /**
-   * Run one cycle of decay and promotion.
+   * Run one cycle of decay, promotion, and tuning.
    * Called on each interval tick.
    */
   private runCycle(): void {
@@ -335,6 +342,16 @@ class DecayService {
     this.decayEngine.run();
     // Then run promotion engine (promote frequently-used memories)
     this.promotionEngine.run();
+    // Finally run tuning engine (auto-adjust parameters based on tier sizes)
+    const tuningResult = this.tuningEngine.run();
+
+    // Report any tuning adjustments
+    if (tuningResult.adjusted) {
+      const tierCounts = this.tuningEngine.getTierCounts();
+      for (const adjustment of tuningResult.adjustments) {
+        this.tuningReporter.report(adjustment, tierCounts);
+      }
+    }
   }
 }
 
@@ -401,7 +418,14 @@ const plugin: Plugin = {
         source: Type.Optional(Type.String({ description: "Origin of the memory" })),
       }),
       async execute(_toolCallId, params) {
-        const result = await storeTool.execute(params as unknown as Parameters<typeof storeTool.execute>[0]);
+        // Get session's default tier when no explicit tier is provided
+        const inputParams = params as Record<string, unknown>;
+        if (inputParams.tier === undefined) {
+          const sessionType = getCurrentSessionType();
+          const sessionConfig = config.sessions[sessionType];
+          inputParams._sessionDefaultTier = sessionConfig.defaultTier;
+        }
+        const result = await storeTool.execute(inputParams as unknown as Parameters<typeof storeTool.execute>[0]);
         return { content: result.content, details: (result as {details?: unknown}).details };
       },
     });
@@ -556,6 +580,7 @@ const plugin: Plugin = {
     const decayCommand = new MemoryDecayCommand(db, config);
     const indexCommand = new MemoryIndexCommand(db, embeddingProvider, vectorHelper);
     const migrateCommand = new MemoryMigrateCommand(db, embeddingProvider, vectorHelper);
+    const lockCommand = new MemoryLockCommand(db, config);
 
     // Register CLI commands using Commander.js callback pattern
     // See: https://docs.openclaw.ai/plugin - CLI Registration section
@@ -609,9 +634,11 @@ const plugin: Plugin = {
           .command("tram-stats")
           .description("Display memory statistics and system information")
           .option("--json", "Output as JSON")
+          .option("--metrics", "Show tuning metrics dashboard (injection usefulness, config vs targets, recent changes)")
           .action(async (opts: Record<string, unknown>) => {
             const result = await statsCommand.execute({
               json: opts.json as boolean | undefined,
+              metrics: opts.metrics as boolean | undefined,
             });
             console.log(result);
           });
@@ -755,8 +782,32 @@ const plugin: Plugin = {
             });
             console.log(result);
           });
+
+        // tram lock <parameter>
+        program
+          .command("tram-lock <parameter>")
+          .description("Lock a parameter to prevent auto-tuning")
+          .option("--json", "Output as JSON")
+          .action((parameter: string, opts: Record<string, unknown>) => {
+            const result = lockCommand.lock(parameter, {
+              json: opts.json as boolean | undefined,
+            });
+            console.log(result);
+          });
+
+        // tram unlock <parameter>
+        program
+          .command("tram-unlock <parameter>")
+          .description("Unlock a parameter to allow auto-tuning")
+          .option("--json", "Output as JSON")
+          .action((parameter: string, opts: Record<string, unknown>) => {
+            const result = lockCommand.unlock(parameter, {
+              json: opts.json as boolean | undefined,
+            });
+            console.log(result);
+          });
       },
-      { commands: ["tram-search", "tram-list", "tram-stats", "tram-forget", "tram-restore", "tram-pin", "tram-unpin", "tram-explain", "tram-set-context", "tram-clear-context", "tram-decay", "tram-index", "tram-migrate"] }
+      { commands: ["tram-search", "tram-list", "tram-stats", "tram-forget", "tram-restore", "tram-pin", "tram-unpin", "tram-explain", "tram-set-context", "tram-clear-context", "tram-decay", "tram-index", "tram-migrate", "tram-lock", "tram-unlock"] }
     );
 
     // Create and register the decay service

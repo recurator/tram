@@ -99,6 +99,52 @@ export class Database {
         FOREIGN KEY (memory_id) REFERENCES memories(id) ON DELETE CASCADE
       )
     `);
+
+    // Create injection_feedback table for tracking injection outcomes
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS injection_feedback (
+        id TEXT PRIMARY KEY,
+        memory_id TEXT NOT NULL,
+        session_key TEXT NOT NULL,
+        injected_at TEXT NOT NULL,
+        access_frequency INTEGER NOT NULL DEFAULT 0,
+        session_outcome TEXT,
+        injection_density REAL NOT NULL DEFAULT 0,
+        decay_resistance REAL,
+        proxy_score REAL,
+        agent_score REAL,
+        agent_notes TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (memory_id) REFERENCES memories(id) ON DELETE CASCADE
+      )
+    `);
+
+    // Create indexes for injection_feedback
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_injection_feedback_memory_id ON injection_feedback(memory_id);
+      CREATE INDEX IF NOT EXISTS idx_injection_feedback_injected_at ON injection_feedback(injected_at);
+    `);
+
+    // Create tuning_log table for tracking tuning changes
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS tuning_log (
+        id TEXT PRIMARY KEY,
+        timestamp TEXT NOT NULL,
+        parameter TEXT NOT NULL,
+        old_value TEXT NOT NULL,
+        new_value TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        source TEXT NOT NULL CHECK (source IN ('auto', 'agent', 'user')),
+        user_override_until TEXT,
+        reverted INTEGER NOT NULL DEFAULT 0
+      )
+    `);
+
+    // Create indexes for tuning_log
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_tuning_log_timestamp ON tuning_log(timestamp);
+      CREATE INDEX IF NOT EXISTS idx_tuning_log_parameter ON tuning_log(parameter);
+    `);
   }
 
   /**

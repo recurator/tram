@@ -38,3 +38,6 @@ npm-debug.log*
 
 # Claude Code settings (personal)
 .claude/
+
+# Local scripts
+scripts/

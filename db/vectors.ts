@@ -377,14 +377,42 @@ export class VectorHelper {
 
   /**
    * Convert Buffer to Float32 array.
+   * Handles both binary Float32Array format and JSON-encoded arrays
+   * for backward compatibility with different storage formats.
    */
   private bufferToFloatArray(buffer: Buffer): number[] {
-    const floatArray = new Float32Array(
-      buffer.buffer,
-      buffer.byteOffset,
-      buffer.byteLength / 4
-    );
-    return Array.from(floatArray);
+    // Check if buffer is binary Float32Array format
+    // Binary format: dimensions * 4 bytes (Float32 = 4 bytes each)
+    if (buffer.byteLength === this.dimensions * 4) {
+      const floatArray = new Float32Array(
+        buffer.buffer,
+        buffer.byteOffset,
+        buffer.byteLength / 4
+      );
+      return Array.from(floatArray);
+    }
+
+    // Fallback: try parsing as JSON-encoded array
+    // This handles embeddings stored via sqlite-vec (JSON format) or other sources
+    try {
+      const jsonStr = buffer.toString("utf8");
+      const parsed = JSON.parse(jsonStr);
+      if (Array.isArray(parsed) && parsed.length === this.dimensions) {
+        return parsed;
+      }
+      // Array exists but wrong dimension - return empty to trigger mismatch error
+      console.warn(
+        `[tram] Embedding dimension mismatch: expected ${this.dimensions}, got ${parsed.length}`
+      );
+      return [];
+    } catch {
+      // Neither binary nor valid JSON - return empty array
+      console.warn(
+        `[tram] Unable to parse embedding: not valid binary (${buffer.byteLength} bytes) ` +
+        `or JSON format`
+      );
+      return [];
+    }
   }
 
   /**
