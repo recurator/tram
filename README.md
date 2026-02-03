@@ -102,6 +102,7 @@ extensions:
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `injection.maxItems` | `number` | `20` | Maximum memories to inject |
+| `injection.minScore` | `number` | `0.2` | Minimum composite score required for injection (0.0-1.0) |
 | `injection.budgets.pinned` | `number` | `25` | % of slots for pinned memories |
 | `injection.budgets.hot` | `number` | `45` | % of slots for HOT tier |
 | `injection.budgets.warm` | `number` | `25` | % of slots for WARM tier |
@@ -140,6 +141,7 @@ extensions:
       frequency: 0.2
     injection:
       maxItems: 20
+      minScore: 0.2
       budgets:
         pinned: 25
         hot: 45

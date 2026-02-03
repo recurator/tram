@@ -8,8 +8,8 @@ Started: 2026-02-03
 | ID | Title | Status |
 |----|-------|--------|
 | US-001 | Add minScore to injection config schema | ✅ complete |
-| US-002 | Filter candidates by minScore in auto-recall | pending |
-| US-003 | Expose full config schema to OpenClaw | pending |
+| US-002 | Filter candidates by minScore in auto-recall | ✅ complete |
+| US-003 | Expose full config schema to OpenClaw | ✅ complete |
 | US-004 | Backward compatibility with boolean autoRecall | pending |
 | US-005 | Add decay overrides config schema | pending |
 | US-006 | Implement category-aware decay in DecayEngine | pending |
@@ -37,6 +37,8 @@ Started: 2026-02-03
 - Config changes require updating: InjectionConfigSchema, ResolvedConfig interface, DEFAULTS, resolveConfig(), and uiHints
 - The codebase uses Zod schemas for validation with corresponding TypeScript interfaces
 - UI hints use specific types: "slider" for 0-1 ranges, "number" for counts, "toggle" for booleans
+- AutoRecallHook uses MemoryScorer for composite scoring; to filter by score, call scorer.score() directly before allocation
+- Tests for auto_recall use mocked database, embedding provider, and vector helper
 
 ## Log
 
@@ -47,5 +49,27 @@ Started: 2026-02-03
   - Config additions follow a 5-part pattern: schema field, ResolvedConfig interface, DEFAULTS, resolveConfig(), uiHints
   - Default values live in DEFAULTS constant (~line 198), not in schema defaults alone
   - uiHints sliders should have min/max/step defined for 0-1 range values
+---
+
+## 2026-02-03 - US-002
+- What was implemented: Added minScore filtering to auto-recall hook before tier budget allocation
+- Files changed: hooks/auto_recall.ts, __tests__/auto_recall.test.ts (new)
+- **Learnings for future iterations:**
+  - AutoRecallConfig interface must include new config options for them to be passed through
+  - Filtering must happen BEFORE calling allocator.allocate() to affect tier budgets correctly
+  - The scorer is already available as this.scorer in AutoRecallHook
+  - Use >= not > for threshold comparisons to include memories at exact threshold
+  - Empty result handling requires checking for current context before returning
+  - createAutoRecallHook() factory function also needs updating to pass new config options
+---
+
+## 2026-02-03 - US-003
+- What was implemented: Verified and documented that full config schema is exposed to OpenClaw
+- Files changed: README.md (added injection.minScore documentation)
+- **Learnings for future iterations:**
+  - The configSchema export in index.ts includes both the Zod schema and uiHints
+  - uiHints already covers all config sections: injection.*, scoring.*, tiers.*, decay.*
+  - The configSchema.parse() is used in register() to parse and validate config from openclaw.json
+  - README should document all config options to help users discover them
 ---
 
