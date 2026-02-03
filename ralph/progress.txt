@@ -22,7 +22,7 @@ Started: 2026-02-03
 | US-013 | Track proxy metrics post-injection | ✅ complete |
 | US-014 | Update access metrics on memory recall | ✅ complete |
 | US-015 | Add tuning config schema | ✅ complete |
-| US-016 | Add reporting config schema | pending |
+| US-016 | Add reporting config schema | ✅ complete |
 | US-017 | Implement auto-adjustment logic | pending |
 | US-018 | Log tuning changes | pending |
 | US-019 | Implement user parameter lock | pending |
@@ -222,4 +222,15 @@ Started: 2026-02-03
   - hotTargetSize default: min=10, max=50
   - warmTargetSize default: min=50, max=200
   - resolveConfig() properly handles nested tuning.autoAdjust paths
+---
+
+## 2026-02-03 - US-016
+- What was implemented: Added reporting config schema with enabled, channel, frequency, includeMetrics fields
+- Files changed: config.ts
+- **Learnings for future iterations:**
+  - ReportingChannelSchema enum: telegram, discord, slack, log, none
+  - ReportingFrequencySchema enum: on-change, daily-summary, weekly-summary
+  - Defaults: enabled=true, channel=log, frequency=on-change, includeMetrics=true
+  - The config pattern for new sections: Schema → MemoryTieredConfigSchema → ResolvedConfig → DEFAULTS → resolveConfig() → uiHints
+  - uiHints for select fields use options array with value/label objects
 ---
