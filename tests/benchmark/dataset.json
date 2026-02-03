@@ -1,0 +1,517 @@
+{
+  "description": "Benchmark dataset for TRAM retrieval quality testing",
+  "version": "1.0.0",
+  "created_at": "2026-02-03",
+  "memories": [
+    {
+      "id": "mem-factual-001",
+      "text": "TypeScript is a statically typed superset of JavaScript that compiles to plain JavaScript. It was developed and maintained by Microsoft.",
+      "memory_type": "factual",
+      "ground_truth_queries": ["What is TypeScript?", "TypeScript definition", "Microsoft programming language"]
+    },
+    {
+      "id": "mem-factual-002",
+      "text": "PostgreSQL is an open-source relational database management system known for its reliability, feature robustness, and performance. It supports JSON, arrays, and custom types.",
+      "memory_type": "factual",
+      "ground_truth_queries": ["PostgreSQL features", "relational database open source", "database JSON support"]
+    },
+    {
+      "id": "mem-factual-003",
+      "text": "React hooks were introduced in version 16.8. The most commonly used hooks are useState for state management and useEffect for side effects.",
+      "memory_type": "factual",
+      "ground_truth_queries": ["React hooks", "useState useEffect", "React state management"]
+    },
+    {
+      "id": "mem-factual-004",
+      "text": "GraphQL is a query language for APIs that allows clients to request exactly the data they need. It was developed by Facebook in 2012 and open-sourced in 2015.",
+      "memory_type": "factual",
+      "ground_truth_queries": ["GraphQL definition", "API query language", "Facebook API technology"]
+    },
+    {
+      "id": "mem-factual-005",
+      "text": "Docker containers are lightweight, standalone executable packages that include everything needed to run a piece of software: code, runtime, system tools, and libraries.",
+      "memory_type": "factual",
+      "ground_truth_queries": ["Docker containers", "containerization", "software packaging"]
+    },
+    {
+      "id": "mem-factual-006",
+      "text": "The HTTP status code 404 means 'Not Found', indicating that the server cannot find the requested resource. 500 means 'Internal Server Error'.",
+      "memory_type": "factual",
+      "ground_truth_queries": ["HTTP 404 meaning", "HTTP status codes", "server error codes"]
+    },
+    {
+      "id": "mem-factual-007",
+      "text": "JSON Web Tokens (JWT) are an open standard for securely transmitting information between parties as a JSON object. JWTs consist of header, payload, and signature.",
+      "memory_type": "factual",
+      "ground_truth_queries": ["JWT structure", "JSON Web Tokens", "authentication tokens"]
+    },
+    {
+      "id": "mem-factual-008",
+      "text": "Git uses a directed acyclic graph (DAG) to store commits. Each commit points to its parent(s), creating a chain of history that cannot have cycles.",
+      "memory_type": "factual",
+      "ground_truth_queries": ["Git commit structure", "Git DAG", "version control history"]
+    },
+    {
+      "id": "mem-factual-009",
+      "text": "The SOLID principles are: Single Responsibility, Open-Closed, Liskov Substitution, Interface Segregation, and Dependency Inversion. They guide object-oriented design.",
+      "memory_type": "factual",
+      "ground_truth_queries": ["SOLID principles", "object oriented design principles", "software design guidelines"]
+    },
+    {
+      "id": "mem-factual-010",
+      "text": "SQLite is a serverless, self-contained SQL database engine. It stores the entire database as a single file on disk and is commonly used in mobile apps and browsers.",
+      "memory_type": "factual",
+      "ground_truth_queries": ["SQLite features", "embedded database", "serverless database"]
+    },
+    {
+      "id": "mem-factual-011",
+      "text": "Redis is an in-memory data structure store used as a database, cache, and message broker. It supports strings, hashes, lists, sets, and sorted sets.",
+      "memory_type": "factual",
+      "ground_truth_queries": ["Redis data structures", "in-memory database", "caching solution"]
+    },
+    {
+      "id": "mem-factual-012",
+      "text": "WebSockets provide full-duplex communication channels over a single TCP connection, enabling real-time data transfer between client and server.",
+      "memory_type": "factual",
+      "ground_truth_queries": ["WebSockets protocol", "real-time communication", "bidirectional web connection"]
+    },
+    {
+      "id": "mem-factual-013",
+      "text": "The CAP theorem states that a distributed system can only guarantee two of three properties: Consistency, Availability, and Partition tolerance.",
+      "memory_type": "factual",
+      "ground_truth_queries": ["CAP theorem", "distributed systems tradeoffs", "consistency availability partition"]
+    },
+    {
+      "id": "mem-factual-014",
+      "text": "OAuth 2.0 is an authorization framework that enables applications to obtain limited access to user accounts. It uses access tokens rather than credentials.",
+      "memory_type": "factual",
+      "ground_truth_queries": ["OAuth 2.0", "authorization framework", "access token authentication"]
+    },
+    {
+      "id": "mem-factual-015",
+      "text": "Kubernetes (K8s) is a container orchestration platform that automates deployment, scaling, and management of containerized applications across clusters.",
+      "memory_type": "factual",
+      "ground_truth_queries": ["Kubernetes orchestration", "K8s container management", "cluster deployment automation"]
+    },
+    {
+      "id": "mem-procedural-001",
+      "text": "To create a new Git branch and switch to it: run 'git checkout -b branch-name' or 'git switch -c branch-name'. The -b/-c flag creates the branch.",
+      "memory_type": "procedural",
+      "ground_truth_queries": ["create git branch", "how to make new branch", "git branch command"]
+    },
+    {
+      "id": "mem-procedural-002",
+      "text": "To set up a new Node.js project: 1) Run 'npm init -y' to create package.json, 2) Install dependencies with 'npm install', 3) Add scripts to package.json for common tasks.",
+      "memory_type": "procedural",
+      "ground_truth_queries": ["setup node project", "npm init steps", "create new nodejs application"]
+    },
+    {
+      "id": "mem-procedural-003",
+      "text": "To debug a Node.js application: 1) Add 'debugger' statements or use --inspect flag, 2) Open chrome://inspect in Chrome, 3) Click 'inspect' on your Node process.",
+      "memory_type": "procedural",
+      "ground_truth_queries": ["debug nodejs", "node inspector", "how to debug node application"]
+    },
+    {
+      "id": "mem-procedural-004",
+      "text": "To configure ESLint: 1) Run 'npm init @eslint/config', 2) Answer the prompts for your project type, 3) Add lint script to package.json, 4) Create .eslintignore for exclusions.",
+      "memory_type": "procedural",
+      "ground_truth_queries": ["setup eslint", "configure linting", "eslint configuration steps"]
+    },
+    {
+      "id": "mem-procedural-005",
+      "text": "To revert a Git commit: use 'git revert <commit-hash>' to create a new commit that undoes changes, or 'git reset --hard <commit-hash>' to remove commits (destructive).",
+      "memory_type": "procedural",
+      "ground_truth_queries": ["undo git commit", "revert changes git", "how to rollback commit"]
+    },
+    {
+      "id": "mem-procedural-006",
+      "text": "To create a Docker image: 1) Write a Dockerfile with FROM, COPY, RUN instructions, 2) Run 'docker build -t image-name .', 3) Verify with 'docker images'.",
+      "memory_type": "procedural",
+      "ground_truth_queries": ["build docker image", "dockerfile instructions", "how to create container image"]
+    },
+    {
+      "id": "mem-procedural-007",
+      "text": "To set up TypeScript in a project: 1) Run 'npm install typescript --save-dev', 2) Create tsconfig.json with 'npx tsc --init', 3) Configure compiler options for your target.",
+      "memory_type": "procedural",
+      "ground_truth_queries": ["setup typescript", "tsconfig configuration", "add typescript to project"]
+    },
+    {
+      "id": "mem-procedural-008",
+      "text": "To squash Git commits: 1) Run 'git rebase -i HEAD~N' where N is commit count, 2) Change 'pick' to 'squash' for commits to combine, 3) Edit the combined commit message.",
+      "memory_type": "procedural",
+      "ground_truth_queries": ["squash git commits", "combine commits", "git rebase squash"]
+    },
+    {
+      "id": "mem-procedural-009",
+      "text": "To implement pagination in SQL: use LIMIT and OFFSET clauses. Example: 'SELECT * FROM users ORDER BY id LIMIT 10 OFFSET 20' returns page 3 with 10 items per page.",
+      "memory_type": "procedural",
+      "ground_truth_queries": ["sql pagination", "limit offset query", "how to paginate database results"]
+    },
+    {
+      "id": "mem-procedural-010",
+      "text": "To write a unit test in Vitest: 1) Import describe, it, expect from vitest, 2) Use describe() to group tests, 3) Use it() for individual test cases, 4) Use expect() for assertions.",
+      "memory_type": "procedural",
+      "ground_truth_queries": ["write vitest test", "unit testing vitest", "how to test with vitest"]
+    },
+    {
+      "id": "mem-procedural-011",
+      "text": "To handle async errors in Express: wrap route handlers with try/catch, or use a wrapper function that catches errors and passes them to next(). Always have error middleware.",
+      "memory_type": "procedural",
+      "ground_truth_queries": ["express error handling", "async errors express", "handle errors in routes"]
+    },
+    {
+      "id": "mem-procedural-012",
+      "text": "To create database migrations: 1) Generate migration file with timestamp, 2) Write up() for changes and down() for rollback, 3) Run migrations in order, 4) Track applied migrations.",
+      "memory_type": "procedural",
+      "ground_truth_queries": ["database migration process", "create db migration", "how to migrate schema"]
+    },
+    {
+      "id": "mem-procedural-013",
+      "text": "To implement JWT authentication: 1) Create token on login with jsonwebtoken.sign(), 2) Store token client-side, 3) Send in Authorization header, 4) Verify with jwt.verify() middleware.",
+      "memory_type": "procedural",
+      "ground_truth_queries": ["implement jwt auth", "jwt authentication steps", "how to use json web tokens"]
+    },
+    {
+      "id": "mem-procedural-014",
+      "text": "To optimize React renders: 1) Use React.memo() for pure components, 2) Use useMemo() for expensive calculations, 3) Use useCallback() for stable function references, 4) Avoid inline objects in props.",
+      "memory_type": "procedural",
+      "ground_truth_queries": ["optimize react performance", "prevent unnecessary renders", "react memoization"]
+    },
+    {
+      "id": "mem-procedural-015",
+      "text": "To set up CI/CD with GitHub Actions: 1) Create .github/workflows/main.yml, 2) Define triggers (push, pull_request), 3) Add jobs with steps for install, test, build, deploy.",
+      "memory_type": "procedural",
+      "ground_truth_queries": ["github actions setup", "create ci cd pipeline", "automate github workflow"]
+    },
+    {
+      "id": "mem-episodic-001",
+      "text": "In yesterday's code review, we decided to refactor the user authentication module to use a more secure password hashing algorithm (argon2 instead of bcrypt).",
+      "memory_type": "episodic",
+      "ground_truth_queries": ["recent code review decision", "authentication refactor", "password hashing change"]
+    },
+    {
+      "id": "mem-episodic-002",
+      "text": "During the sprint planning on Monday, the team estimated the API redesign would take 2 weeks. We assigned Sarah to lead the effort with Tom as backup.",
+      "memory_type": "episodic",
+      "ground_truth_queries": ["sprint planning decisions", "API redesign timeline", "team assignments"]
+    },
+    {
+      "id": "mem-episodic-003",
+      "text": "The production outage last Friday was caused by a database connection pool exhaustion. We fixed it by increasing the pool size from 10 to 50 connections.",
+      "memory_type": "episodic",
+      "ground_truth_queries": ["production outage cause", "database connection issue", "recent production incident"]
+    },
+    {
+      "id": "mem-episodic-004",
+      "text": "In the architecture meeting, we chose PostgreSQL over MongoDB for the new service because we need strong ACID guarantees for financial transactions.",
+      "memory_type": "episodic",
+      "ground_truth_queries": ["database choice decision", "architecture meeting outcome", "why postgresql selected"]
+    },
+    {
+      "id": "mem-episodic-005",
+      "text": "The customer demo on Wednesday went well. They were impressed by the new dashboard but requested a CSV export feature for reports.",
+      "memory_type": "episodic",
+      "ground_truth_queries": ["customer demo feedback", "dashboard presentation", "requested features"]
+    },
+    {
+      "id": "mem-episodic-006",
+      "text": "We discovered a memory leak in the image processing service during load testing. The cause was unreleased file handles when processing large batches.",
+      "memory_type": "episodic",
+      "ground_truth_queries": ["memory leak discovery", "image processing bug", "load testing findings"]
+    },
+    {
+      "id": "mem-episodic-007",
+      "text": "The security audit revealed we need to add rate limiting to the login endpoint. They recommended 5 attempts per minute per IP address.",
+      "memory_type": "episodic",
+      "ground_truth_queries": ["security audit findings", "rate limiting requirement", "login security recommendation"]
+    },
+    {
+      "id": "mem-episodic-008",
+      "text": "Yesterday's deployment failed because the migration script timed out. We fixed it by breaking the migration into smaller batches of 1000 records each.",
+      "memory_type": "episodic",
+      "ground_truth_queries": ["deployment failure", "migration timeout fix", "recent deployment issue"]
+    },
+    {
+      "id": "mem-episodic-009",
+      "text": "The team agreed to switch from Moment.js to date-fns for date handling because Moment is now in maintenance mode and date-fns has smaller bundle size.",
+      "memory_type": "episodic",
+      "ground_truth_queries": ["date library decision", "moment to date-fns", "library migration choice"]
+    },
+    {
+      "id": "mem-episodic-010",
+      "text": "During pair programming with Alex, we found that the caching issue was caused by stale ETag headers. We fixed it by adding proper cache invalidation.",
+      "memory_type": "episodic",
+      "ground_truth_queries": ["caching bug fix", "pair programming discovery", "ETag header issue"]
+    },
+    {
+      "id": "mem-episodic-011",
+      "text": "The QA team reported 12 bugs from the regression testing cycle. Most were UI alignment issues in the mobile viewport, fixed in commit abc123.",
+      "memory_type": "episodic",
+      "ground_truth_queries": ["QA regression bugs", "mobile ui issues", "testing cycle results"]
+    },
+    {
+      "id": "mem-episodic-012",
+      "text": "We had to rollback the feature flag changes after users reported slow page loads. Investigation showed the flag evaluation was called too frequently.",
+      "memory_type": "episodic",
+      "ground_truth_queries": ["feature flag rollback", "performance regression", "user reported slowness"]
+    },
+    {
+      "id": "mem-episodic-013",
+      "text": "In the retrospective, the team identified that unclear requirements caused 3 days of rework. We agreed to have a kick-off meeting before starting any major feature.",
+      "memory_type": "episodic",
+      "ground_truth_queries": ["retrospective learnings", "requirements issue", "process improvement decision"]
+    },
+    {
+      "id": "mem-episodic-014",
+      "text": "The third-party API we depend on went down for 2 hours yesterday. We implemented circuit breaker pattern to handle such failures gracefully in the future.",
+      "memory_type": "episodic",
+      "ground_truth_queries": ["API outage response", "circuit breaker implementation", "third party dependency failure"]
+    },
+    {
+      "id": "mem-episodic-015",
+      "text": "User feedback from the beta release indicates the onboarding flow is confusing. The main pain point is the account verification email taking too long.",
+      "memory_type": "episodic",
+      "ground_truth_queries": ["beta feedback", "onboarding issues", "user experience problems"]
+    },
+    {
+      "id": "mem-project-001",
+      "text": "The TRAM project uses a tiered memory system: HOT (actively used), WARM (recently used), COLD (infrequently used), and ARCHIVE (historical, never auto-injected).",
+      "memory_type": "project",
+      "ground_truth_queries": ["TRAM tiers", "memory system structure", "tier definitions"]
+    },
+    {
+      "id": "mem-project-002",
+      "text": "Our API follows REST conventions with resource-based URLs. All endpoints are versioned under /api/v1/ and return JSON with snake_case property names.",
+      "memory_type": "project",
+      "ground_truth_queries": ["API conventions", "REST endpoint structure", "response format"]
+    },
+    {
+      "id": "mem-project-003",
+      "text": "The project uses Vitest for unit tests and Playwright for E2E tests. Test files are in __tests__ directories next to source files or in a dedicated tests folder.",
+      "memory_type": "project",
+      "ground_truth_queries": ["testing framework", "test file location", "project test setup"]
+    },
+    {
+      "id": "mem-project-004",
+      "text": "Database schema uses soft deletes with deleted_at column. The do_not_inject flag serves a similar purpose for memories - keeping them in DB but excluding from auto-injection.",
+      "memory_type": "project",
+      "ground_truth_queries": ["soft delete pattern", "deleted records handling", "do_not_inject usage"]
+    },
+    {
+      "id": "mem-project-005",
+      "text": "Configuration is loaded from openclaw.json and validated with Zod schemas. Default values are defined in the DEFAULTS constant and merged with user config.",
+      "memory_type": "project",
+      "ground_truth_queries": ["configuration loading", "config validation", "openclaw.json usage"]
+    },
+    {
+      "id": "mem-project-006",
+      "text": "The scoring formula is: score = w_sim * similarity + w_rec * exp(-age/half_life) + w_freq * log(1 + use_count). Each memory type has different half-lives.",
+      "memory_type": "project",
+      "ground_truth_queries": ["scoring formula", "memory score calculation", "relevance scoring"]
+    },
+    {
+      "id": "mem-project-007",
+      "text": "CLI commands are implemented in cli/ directory and registered via Commander.js in index.ts. Each command class implements execute() method.",
+      "memory_type": "project",
+      "ground_truth_queries": ["CLI implementation", "command registration", "cli directory structure"]
+    },
+    {
+      "id": "mem-project-008",
+      "text": "Hooks in TRAM are auto-recall (injects memories before prompts) and auto-capture (extracts memories from responses). They can be enabled per session type.",
+      "memory_type": "project",
+      "ground_truth_queries": ["TRAM hooks", "auto-recall auto-capture", "hook functionality"]
+    },
+    {
+      "id": "mem-project-009",
+      "text": "The decay engine runs on a cron schedule and demotes memories between tiers based on age and usage. Pinned memories are exempt from decay.",
+      "memory_type": "project",
+      "ground_truth_queries": ["decay engine", "memory demotion", "tier transitions"]
+    },
+    {
+      "id": "mem-project-010",
+      "text": "Memory types have different decay half-lives: procedural (180 days), factual (90 days), project (45 days), episodic (10 days). These affect the recency component score.",
+      "memory_type": "project",
+      "ground_truth_queries": ["memory type half-lives", "decay rates", "type-specific decay"]
+    },
+    {
+      "id": "mem-project-011",
+      "text": "The injection_feedback table tracks usefulness of injected memories. Metrics include access_frequency, injection_density, and proxy_score for self-tuning.",
+      "memory_type": "project",
+      "ground_truth_queries": ["injection feedback", "usefulness tracking", "self-tuning metrics"]
+    },
+    {
+      "id": "mem-project-012",
+      "text": "Embedding vectors are stored in a separate table with foreign key to memories. The system uses cosine similarity for vector search with configurable L2 normalization.",
+      "memory_type": "project",
+      "ground_truth_queries": ["embedding storage", "vector search", "similarity calculation"]
+    },
+    {
+      "id": "mem-project-013",
+      "text": "Session types (main, cron, spawned) have different default settings for auto-capture and auto-inject. Cron sessions typically have auto-capture disabled to avoid noise.",
+      "memory_type": "project",
+      "ground_truth_queries": ["session types", "cron session settings", "session configuration"]
+    },
+    {
+      "id": "mem-project-014",
+      "text": "The TuningEngine auto-adjusts parameters like importanceThreshold based on tier sizes. Users can lock parameters to prevent auto-tuning for a configurable duration.",
+      "memory_type": "project",
+      "ground_truth_queries": ["tuning engine", "auto-adjustment", "parameter locking"]
+    },
+    {
+      "id": "mem-project-015",
+      "text": "Error handling follows the Result pattern in core operations. The TramError class extends Error with code and context fields for structured error reporting.",
+      "memory_type": "project",
+      "ground_truth_queries": ["error handling pattern", "TramError class", "error structure"]
+    },
+    {
+      "id": "mem-factual-016",
+      "text": "The async/await syntax in JavaScript is syntactic sugar over Promises. An async function always returns a Promise, and await pauses execution until the Promise resolves.",
+      "memory_type": "factual",
+      "ground_truth_queries": ["async await explained", "javascript promises", "asynchronous javascript"]
+    },
+    {
+      "id": "mem-factual-017",
+      "text": "Node.js uses a single-threaded event loop for non-blocking I/O operations. CPU-intensive tasks can block the event loop and should be offloaded to worker threads.",
+      "memory_type": "factual",
+      "ground_truth_queries": ["node event loop", "single threaded nodejs", "worker threads"]
+    },
+    {
+      "id": "mem-factual-018",
+      "text": "REST API design principles: use nouns not verbs in URLs, HTTP methods indicate actions (GET, POST, PUT, DELETE), and status codes convey results (2xx success, 4xx client error, 5xx server error).",
+      "memory_type": "factual",
+      "ground_truth_queries": ["REST design principles", "API best practices", "HTTP methods usage"]
+    },
+    {
+      "id": "mem-factual-019",
+      "text": "Zod is a TypeScript-first schema validation library. It provides static type inference from schemas using z.infer<typeof Schema> and runtime validation with schema.parse().",
+      "memory_type": "factual",
+      "ground_truth_queries": ["Zod validation", "typescript schema validation", "zod type inference"]
+    },
+    {
+      "id": "mem-factual-020",
+      "text": "The difference between null and undefined in JavaScript: undefined means a variable was declared but not assigned a value, while null is an intentional absence of any object value.",
+      "memory_type": "factual",
+      "ground_truth_queries": ["null vs undefined", "javascript null undefined difference", "absence of value"]
+    },
+    {
+      "id": "mem-procedural-016",
+      "text": "To resolve Git merge conflicts: 1) Open conflicted files and look for <<<<<<< markers, 2) Choose which changes to keep, 3) Remove conflict markers, 4) Stage and commit the resolution.",
+      "memory_type": "procedural",
+      "ground_truth_queries": ["resolve merge conflicts", "git conflict resolution", "fix conflicted files"]
+    },
+    {
+      "id": "mem-procedural-017",
+      "text": "To profile Node.js application performance: 1) Run with --inspect flag, 2) Open Chrome DevTools, 3) Use Performance tab to record CPU profile, 4) Analyze flame chart for hot functions.",
+      "memory_type": "procedural",
+      "ground_truth_queries": ["profile node performance", "nodejs profiling", "find slow functions"]
+    },
+    {
+      "id": "mem-procedural-018",
+      "text": "To implement rate limiting: 1) Track request counts per key (IP/user) in Redis, 2) Set TTL matching the window (e.g., 60s), 3) Check count before processing, 4) Return 429 if exceeded.",
+      "memory_type": "procedural",
+      "ground_truth_queries": ["implement rate limiting", "api throttling", "request limiting"]
+    },
+    {
+      "id": "mem-procedural-019",
+      "text": "To add a foreign key constraint in SQLite: use REFERENCES in CREATE TABLE, then enable enforcement with PRAGMA foreign_keys = ON (must be set per connection).",
+      "memory_type": "procedural",
+      "ground_truth_queries": ["sqlite foreign key", "add database constraint", "foreign key sqlite"]
+    },
+    {
+      "id": "mem-procedural-020",
+      "text": "To create an index for query optimization: 1) Identify slow queries with EXPLAIN ANALYZE, 2) Create index on WHERE/JOIN columns, 3) Consider composite indexes for multi-column filters.",
+      "memory_type": "procedural",
+      "ground_truth_queries": ["create database index", "optimize slow queries", "sql indexing"]
+    },
+    {
+      "id": "mem-episodic-016",
+      "text": "The performance review showed our P95 latency increased by 40% after the last release. Root cause was the new logging middleware serializing large request bodies.",
+      "memory_type": "episodic",
+      "ground_truth_queries": ["latency increase cause", "performance regression", "logging overhead"]
+    },
+    {
+      "id": "mem-episodic-017",
+      "text": "We decided to freeze feature development for a hardening sprint after the recent reliability issues. Focus will be on adding monitoring, alerts, and fixing tech debt.",
+      "memory_type": "episodic",
+      "ground_truth_queries": ["hardening sprint decision", "feature freeze", "reliability focus"]
+    },
+    {
+      "id": "mem-episodic-018",
+      "text": "The data migration from the old system completed yesterday. We moved 2.5 million records with 99.97% success rate. The 0.03% failures were due to invalid email formats.",
+      "memory_type": "episodic",
+      "ground_truth_queries": ["data migration completed", "migration results", "record transfer outcome"]
+    },
+    {
+      "id": "mem-episodic-019",
+      "text": "User research interviews revealed that power users want keyboard shortcuts for common actions. We added this to the Q2 roadmap with high priority.",
+      "memory_type": "episodic",
+      "ground_truth_queries": ["user research findings", "keyboard shortcuts request", "roadmap addition"]
+    },
+    {
+      "id": "mem-episodic-020",
+      "text": "The SSL certificate expired causing a 30-minute outage on the payment service. We set up automated renewal with certbot and added expiry monitoring to prevent recurrence.",
+      "memory_type": "episodic",
+      "ground_truth_queries": ["SSL certificate outage", "certificate expiry incident", "automated renewal setup"]
+    },
+    {
+      "id": "mem-project-016",
+      "text": "The uiHints object in config.ts provides metadata for OpenClaw UI generation. It maps config paths to widget types (slider, number, toggle, select) with their options.",
+      "memory_type": "project",
+      "ground_truth_queries": ["uiHints configuration", "OpenClaw UI generation", "config widget types"]
+    },
+    {
+      "id": "mem-project-017",
+      "text": "The TierBudgetAllocator distributes injection slots among tiers based on configured weights and maximum tokens. HOT tier typically gets 40%, WARM 40%, COLD 20%.",
+      "memory_type": "project",
+      "ground_truth_queries": ["tier budget allocation", "injection slot distribution", "tier weights"]
+    },
+    {
+      "id": "mem-project-018",
+      "text": "The ResolvedConfig interface has all fields required (not optional) to ensure type safety. The resolveConfig() function fills in defaults for any missing values.",
+      "memory_type": "project",
+      "ground_truth_queries": ["ResolvedConfig pattern", "config resolution", "type safety approach"]
+    },
+    {
+      "id": "mem-project-019",
+      "text": "Memory sources are tracked for debugging: 'user' for manual memory_store, 'auto-capture' for hook captures, 'file:path' for imported files, 'migration' for data imports.",
+      "memory_type": "project",
+      "ground_truth_queries": ["memory source tracking", "source field values", "memory origin"]
+    },
+    {
+      "id": "mem-project-020",
+      "text": "The reporting system supports multiple channels: log (console), telegram, discord, slack. Each channel requires specific environment variables for webhook URLs or bot tokens.",
+      "memory_type": "project",
+      "ground_truth_queries": ["notification channels", "reporting configuration", "webhook setup"]
+    },
+    {
+      "id": "mem-factual-021",
+      "text": "Semantic versioning (SemVer) uses MAJOR.MINOR.PATCH format. MAJOR for breaking changes, MINOR for new features (backward compatible), PATCH for bug fixes.",
+      "memory_type": "factual",
+      "ground_truth_queries": ["semantic versioning", "semver format", "version numbering"]
+    },
+    {
+      "id": "mem-factual-022",
+      "text": "The Event Loop in JavaScript has phases: timers, pending callbacks, idle/prepare, poll, check, close callbacks. Promise callbacks run in microtask queue between phases.",
+      "memory_type": "factual",
+      "ground_truth_queries": ["event loop phases", "microtask queue", "javascript execution order"]
+    },
+    {
+      "id": "mem-factual-023",
+      "text": "CORS (Cross-Origin Resource Sharing) allows servers to specify which origins can access resources. The Access-Control-Allow-Origin header controls this.",
+      "memory_type": "factual",
+      "ground_truth_queries": ["CORS explained", "cross origin requests", "access control headers"]
+    },
+    {
+      "id": "mem-factual-024",
+      "text": "A closure in JavaScript is a function that has access to variables from its outer scope even after the outer function has returned. It 'closes over' those variables.",
+      "memory_type": "factual",
+      "ground_truth_queries": ["javascript closure", "closure definition", "lexical scope"]
+    },
+    {
+      "id": "mem-factual-025",
+      "text": "The spread operator (...) in JavaScript expands iterables into individual elements. It can be used for array copying, merging objects, and passing function arguments.",
+      "memory_type": "factual",
+      "ground_truth_queries": ["spread operator", "javascript spread syntax", "object merging"]
+    }
+  ]
+}

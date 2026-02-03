@@ -1,0 +1,307 @@
+{
+  "description": "Benchmark queries for TRAM retrieval quality testing",
+  "version": "1.0.0",
+  "created_at": "2026-02-03",
+  "queries": [
+    {
+      "id": "query-001",
+      "text": "What is TypeScript and who developed it?",
+      "relevant_memory_ids": ["mem-factual-001"],
+      "category": "factual-direct"
+    },
+    {
+      "id": "query-002",
+      "text": "How do I create a new branch in Git?",
+      "relevant_memory_ids": ["mem-procedural-001"],
+      "category": "procedural-direct"
+    },
+    {
+      "id": "query-003",
+      "text": "What did we decide about the password hashing algorithm?",
+      "relevant_memory_ids": ["mem-episodic-001"],
+      "category": "episodic-direct"
+    },
+    {
+      "id": "query-004",
+      "text": "How does the TRAM tier system work?",
+      "relevant_memory_ids": ["mem-project-001", "mem-project-009", "mem-project-010"],
+      "category": "project-direct"
+    },
+    {
+      "id": "query-005",
+      "text": "What databases support JSON natively?",
+      "relevant_memory_ids": ["mem-factual-002", "mem-factual-010"],
+      "category": "factual-synonym"
+    },
+    {
+      "id": "query-006",
+      "text": "How do I undo my last git commit?",
+      "relevant_memory_ids": ["mem-procedural-005"],
+      "category": "procedural-synonym"
+    },
+    {
+      "id": "query-007",
+      "text": "What caused the service disruption last week?",
+      "relevant_memory_ids": ["mem-episodic-003", "mem-episodic-008", "mem-episodic-014"],
+      "category": "episodic-temporal"
+    },
+    {
+      "id": "query-008",
+      "text": "How is memory relevance calculated?",
+      "relevant_memory_ids": ["mem-project-006", "mem-project-010"],
+      "category": "project-synonym"
+    },
+    {
+      "id": "query-009",
+      "text": "What are common React performance optimization techniques?",
+      "relevant_memory_ids": ["mem-procedural-014", "mem-factual-003"],
+      "category": "multi-type"
+    },
+    {
+      "id": "query-010",
+      "text": "How do I set up automated testing in my project?",
+      "relevant_memory_ids": ["mem-procedural-010", "mem-project-003", "mem-procedural-015"],
+      "category": "multi-type"
+    },
+    {
+      "id": "query-011",
+      "text": "What is the difference between PostgreSQL and MongoDB?",
+      "relevant_memory_ids": ["mem-factual-002", "mem-episodic-004"],
+      "category": "cross-reference"
+    },
+    {
+      "id": "query-012",
+      "text": "How do I handle errors in async Express routes?",
+      "relevant_memory_ids": ["mem-procedural-011", "mem-factual-016"],
+      "category": "procedural-composite"
+    },
+    {
+      "id": "query-013",
+      "text": "What HTTP codes indicate client errors?",
+      "relevant_memory_ids": ["mem-factual-006", "mem-factual-018"],
+      "category": "factual-partial"
+    },
+    {
+      "id": "query-014",
+      "text": "How do I implement user authentication with tokens?",
+      "relevant_memory_ids": ["mem-procedural-013", "mem-factual-007", "mem-factual-014"],
+      "category": "multi-type"
+    },
+    {
+      "id": "query-015",
+      "text": "What feedback did users give about the new interface?",
+      "relevant_memory_ids": ["mem-episodic-005", "mem-episodic-015", "mem-episodic-019"],
+      "category": "episodic-thematic"
+    },
+    {
+      "id": "query-016",
+      "text": "How does auto-injection work in TRAM?",
+      "relevant_memory_ids": ["mem-project-008", "mem-project-011", "mem-project-017"],
+      "category": "project-multi"
+    },
+    {
+      "id": "query-017",
+      "text": "What are containers and how do I build one?",
+      "relevant_memory_ids": ["mem-factual-005", "mem-procedural-006", "mem-factual-015"],
+      "category": "multi-type"
+    },
+    {
+      "id": "query-018",
+      "text": "How do I optimize database query performance?",
+      "relevant_memory_ids": ["mem-procedural-020", "mem-procedural-009"],
+      "category": "procedural-related"
+    },
+    {
+      "id": "query-019",
+      "text": "What security recommendations came from the audit?",
+      "relevant_memory_ids": ["mem-episodic-007", "mem-procedural-018"],
+      "category": "episodic-action"
+    },
+    {
+      "id": "query-020",
+      "text": "How is configuration validated and loaded?",
+      "relevant_memory_ids": ["mem-project-005", "mem-project-018", "mem-factual-019"],
+      "category": "project-implementation"
+    },
+    {
+      "id": "query-021",
+      "text": "What is real-time communication in web apps?",
+      "relevant_memory_ids": ["mem-factual-012"],
+      "category": "factual-concept"
+    },
+    {
+      "id": "query-022",
+      "text": "How do I debug slow Node.js applications?",
+      "relevant_memory_ids": ["mem-procedural-003", "mem-procedural-017", "mem-episodic-016"],
+      "category": "multi-type"
+    },
+    {
+      "id": "query-023",
+      "text": "What process improvements did we agree on?",
+      "relevant_memory_ids": ["mem-episodic-013", "mem-episodic-017"],
+      "category": "episodic-decisions"
+    },
+    {
+      "id": "query-024",
+      "text": "What are the different memory types and their decay rates?",
+      "relevant_memory_ids": ["mem-project-010", "mem-project-009"],
+      "category": "project-specific"
+    },
+    {
+      "id": "query-025",
+      "text": "How do distributed systems handle consistency?",
+      "relevant_memory_ids": ["mem-factual-013"],
+      "category": "factual-theory"
+    },
+    {
+      "id": "query-026",
+      "text": "What steps are needed to set up TypeScript?",
+      "relevant_memory_ids": ["mem-procedural-007", "mem-factual-001"],
+      "category": "procedural-setup"
+    },
+    {
+      "id": "query-027",
+      "text": "Why did the latest deployment fail?",
+      "relevant_memory_ids": ["mem-episodic-008", "mem-episodic-012"],
+      "category": "episodic-incident"
+    },
+    {
+      "id": "query-028",
+      "text": "How do CLI commands get registered in the project?",
+      "relevant_memory_ids": ["mem-project-007"],
+      "category": "project-architecture"
+    },
+    {
+      "id": "query-029",
+      "text": "What date handling library should we use?",
+      "relevant_memory_ids": ["mem-episodic-009"],
+      "category": "episodic-decision"
+    },
+    {
+      "id": "query-030",
+      "text": "How does JavaScript handle asynchronous operations?",
+      "relevant_memory_ids": ["mem-factual-016", "mem-factual-017", "mem-factual-022"],
+      "category": "factual-deep"
+    },
+    {
+      "id": "query-031",
+      "text": "What are good design principles for software?",
+      "relevant_memory_ids": ["mem-factual-009"],
+      "category": "factual-principles"
+    },
+    {
+      "id": "query-032",
+      "text": "How do I merge multiple git commits together?",
+      "relevant_memory_ids": ["mem-procedural-008"],
+      "category": "procedural-specific"
+    },
+    {
+      "id": "query-033",
+      "text": "What outages has the team dealt with recently?",
+      "relevant_memory_ids": ["mem-episodic-003", "mem-episodic-14", "mem-episodic-020"],
+      "category": "episodic-theme"
+    },
+    {
+      "id": "query-034",
+      "text": "How do notifications get delivered to users?",
+      "relevant_memory_ids": ["mem-project-020"],
+      "category": "project-feature"
+    },
+    {
+      "id": "query-035",
+      "text": "What is the correct API response format?",
+      "relevant_memory_ids": ["mem-project-002", "mem-factual-018"],
+      "category": "multi-type"
+    },
+    {
+      "id": "query-036",
+      "text": "How do foreign keys work in SQLite?",
+      "relevant_memory_ids": ["mem-procedural-019", "mem-factual-010"],
+      "category": "procedural-database"
+    },
+    {
+      "id": "query-037",
+      "text": "What memory issues were found during testing?",
+      "relevant_memory_ids": ["mem-episodic-006"],
+      "category": "episodic-specific"
+    },
+    {
+      "id": "query-038",
+      "text": "How does the tuning system auto-adjust parameters?",
+      "relevant_memory_ids": ["mem-project-014", "mem-project-011"],
+      "category": "project-tuning"
+    },
+    {
+      "id": "query-039",
+      "text": "What is closure in programming?",
+      "relevant_memory_ids": ["mem-factual-024"],
+      "category": "factual-concept"
+    },
+    {
+      "id": "query-040",
+      "text": "How do I set up continuous integration?",
+      "relevant_memory_ids": ["mem-procedural-015"],
+      "category": "procedural-devops"
+    },
+    {
+      "id": "query-041",
+      "text": "What assignments were made in sprint planning?",
+      "relevant_memory_ids": ["mem-episodic-002"],
+      "category": "episodic-assignment"
+    },
+    {
+      "id": "query-042",
+      "text": "How are embeddings stored and searched?",
+      "relevant_memory_ids": ["mem-project-012"],
+      "category": "project-vector"
+    },
+    {
+      "id": "query-043",
+      "text": "What's the difference between null and undefined?",
+      "relevant_memory_ids": ["mem-factual-020"],
+      "category": "factual-comparison"
+    },
+    {
+      "id": "query-044",
+      "text": "How should I handle git merge conflicts?",
+      "relevant_memory_ids": ["mem-procedural-016"],
+      "category": "procedural-git"
+    },
+    {
+      "id": "query-045",
+      "text": "What was learned from the data migration?",
+      "relevant_memory_ids": ["mem-episodic-018"],
+      "category": "episodic-result"
+    },
+    {
+      "id": "query-046",
+      "text": "Where do memories come from in the system?",
+      "relevant_memory_ids": ["mem-project-019", "mem-project-008"],
+      "category": "project-source"
+    },
+    {
+      "id": "query-047",
+      "text": "How does versioning work in software releases?",
+      "relevant_memory_ids": ["mem-factual-021"],
+      "category": "factual-practice"
+    },
+    {
+      "id": "query-048",
+      "text": "What do I need to know about CORS?",
+      "relevant_memory_ids": ["mem-factual-023"],
+      "category": "factual-web"
+    },
+    {
+      "id": "query-049",
+      "text": "How do I configure linting for my codebase?",
+      "relevant_memory_ids": ["mem-procedural-004"],
+      "category": "procedural-tooling"
+    },
+    {
+      "id": "query-050",
+      "text": "What is the event loop and how does it work?",
+      "relevant_memory_ids": ["mem-factual-17", "mem-factual-022"],
+      "category": "factual-runtime"
+    }
+  ]
+}
