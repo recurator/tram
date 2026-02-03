@@ -119,6 +119,34 @@ export const InjectionConfigSchema = z.object({
 export type InjectionConfig = z.infer<typeof InjectionConfigSchema>;
 
 /**
+ * Auto-recall configuration when using object form.
+ * Allows fine-grained control over auto-recall behavior.
+ */
+export const AutoRecallObjectConfigSchema = z.object({
+  /** Whether auto-recall is enabled (default: true) */
+  enabled: z.boolean().default(true),
+  /** Minimum composite score for memory to be injected (default 0.2) */
+  minScore: z.number().min(0).max(1).optional(),
+  /** Maximum number of memories to inject */
+  maxItems: z.number().min(1).optional(),
+  /** Budget percentages by tier (override injection.budgets) */
+  budgets: BudgetsConfigSchema.optional(),
+});
+export type AutoRecallObjectConfig = z.infer<typeof AutoRecallObjectConfigSchema>;
+
+/**
+ * Auto-recall configuration schema.
+ * Accepts either:
+ * - boolean: true enables with defaults, false disables
+ * - object: fine-grained control over auto-recall settings
+ */
+export const AutoRecallConfigSchema = z.union([
+  z.boolean(),
+  AutoRecallObjectConfigSchema,
+]);
+export type AutoRecallConfig = z.infer<typeof AutoRecallConfigSchema>;
+
+/**
  * Decay service configuration
  */
 export const DecayConfigSchema = z.object({
@@ -151,8 +179,12 @@ export const MemoryTieredConfigSchema = z.object({
   dbPath: z.string().default(DEFAULT_DB_PATH),
   /** Automatically capture important information from conversations */
   autoCapture: z.boolean().default(true),
-  /** Automatically recall relevant memories before agent responses */
-  autoRecall: z.boolean().default(true),
+  /** Automatically recall relevant memories before agent responses.
+   *  - boolean `true`: enable with defaults
+   *  - boolean `false`: disable auto-recall
+   *  - object: fine-grained control (enabled, minScore, maxItems, budgets)
+   */
+  autoRecall: AutoRecallConfigSchema.default(true),
   /** Tier-specific settings */
   tiers: TiersConfigSchema.optional(),
   /** Scoring weights for memory ranking */
@@ -168,6 +200,20 @@ export const MemoryTieredConfigSchema = z.object({
 export type MemoryTieredConfig = z.infer<typeof MemoryTieredConfigSchema>;
 
 /**
+ * Resolved auto-recall configuration with all defaults applied
+ */
+export interface ResolvedAutoRecallConfig {
+  /** Whether auto-recall is enabled */
+  enabled: boolean;
+  /** Minimum composite score for memory to be injected */
+  minScore: number;
+  /** Maximum number of memories to inject */
+  maxItems: number;
+  /** Budget percentages by tier */
+  budgets: { pinned: number; hot: number; warm: number; cold: number };
+}
+
+/**
  * Resolved configuration with all defaults applied
  */
 export interface ResolvedConfig {
@@ -179,7 +225,8 @@ export interface ResolvedConfig {
   };
   dbPath: string;
   autoCapture: boolean;
-  autoRecall: boolean;
+  /** Resolved auto-recall configuration (always an object) */
+  autoRecall: ResolvedAutoRecallConfig;
   tiers: {
     hot: { ttlHours: number };
     warm: { demotionDays: number };
@@ -205,7 +252,12 @@ const DEFAULTS = {
   },
   dbPath: DEFAULT_DB_PATH,
   autoCapture: true,
-  autoRecall: true,
+  autoRecall: {
+    enabled: true,
+    minScore: 0.2,
+    maxItems: 20,
+    budgets: { pinned: 25, hot: 45, warm: 25, cold: 5 },
+  },
   tiers: {
     hot: { ttlHours: 72 },
     warm: { demotionDays: 60 },
@@ -222,9 +274,61 @@ const DEFAULTS = {
 } as const;
 
 /**
+ * Resolve autoRecall configuration from boolean or object input.
+ * @param autoRecall - The raw autoRecall config (boolean or object)
+ * @param injection - The resolved injection config (for fallback values)
+ * @returns Fully resolved autoRecall configuration object
+ */
+function resolveAutoRecall(
+  autoRecall: AutoRecallConfig | undefined,
+  injection: ResolvedConfig["injection"]
+): ResolvedAutoRecallConfig {
+  // Default case: undefined means enabled with defaults
+  if (autoRecall === undefined) {
+    return { ...DEFAULTS.autoRecall };
+  }
+
+  // Boolean case: true = enabled with defaults, false = disabled
+  if (typeof autoRecall === "boolean") {
+    return {
+      enabled: autoRecall,
+      minScore: DEFAULTS.autoRecall.minScore,
+      maxItems: DEFAULTS.autoRecall.maxItems,
+      budgets: { ...DEFAULTS.autoRecall.budgets },
+    };
+  }
+
+  // Object case: merge with defaults, use injection config as fallback
+  return {
+    enabled: autoRecall.enabled ?? true,
+    minScore: autoRecall.minScore ?? injection.minScore,
+    maxItems: autoRecall.maxItems ?? injection.maxItems,
+    budgets: {
+      pinned: autoRecall.budgets?.pinned ?? injection.budgets.pinned,
+      hot: autoRecall.budgets?.hot ?? injection.budgets.hot,
+      warm: autoRecall.budgets?.warm ?? injection.budgets.warm,
+      cold: autoRecall.budgets?.cold ?? injection.budgets.cold,
+    },
+  };
+}
+
+/**
  * Apply defaults to parsed config, filling in missing values
  */
 export function resolveConfig(config: MemoryTieredConfig): ResolvedConfig {
+  // Resolve injection first so we can use it for autoRecall fallbacks
+  const injection = {
+    maxItems: config.injection?.maxItems ?? DEFAULTS.injection.maxItems,
+    minScore: config.injection?.minScore ?? DEFAULTS.injection.minScore,
+    budgets: {
+      pinned:
+        config.injection?.budgets?.pinned ?? DEFAULTS.injection.budgets.pinned,
+      hot: config.injection?.budgets?.hot ?? DEFAULTS.injection.budgets.hot,
+      warm: config.injection?.budgets?.warm ?? DEFAULTS.injection.budgets.warm,
+      cold: config.injection?.budgets?.cold ?? DEFAULTS.injection.budgets.cold,
+    },
+  };
+
   return {
     embedding: {
       provider: config.embedding?.provider ?? DEFAULTS.embedding.provider,
@@ -238,7 +342,7 @@ export function resolveConfig(config: MemoryTieredConfig): ResolvedConfig {
     },
     dbPath: config.dbPath ?? DEFAULTS.dbPath,
     autoCapture: config.autoCapture ?? DEFAULTS.autoCapture,
-    autoRecall: config.autoRecall ?? DEFAULTS.autoRecall,
+    autoRecall: resolveAutoRecall(config.autoRecall, injection),
     tiers: {
       hot: {
         ttlHours: config.tiers?.hot?.ttlHours ?? DEFAULTS.tiers.hot.ttlHours,
@@ -262,20 +366,7 @@ export function resolveConfig(config: MemoryTieredConfig): ResolvedConfig {
       recency: config.scoring?.recency ?? DEFAULTS.scoring.recency,
       frequency: config.scoring?.frequency ?? DEFAULTS.scoring.frequency,
     },
-    injection: {
-      maxItems: config.injection?.maxItems ?? DEFAULTS.injection.maxItems,
-      minScore: config.injection?.minScore ?? DEFAULTS.injection.minScore,
-      budgets: {
-        pinned:
-          config.injection?.budgets?.pinned ??
-          DEFAULTS.injection.budgets.pinned,
-        hot: config.injection?.budgets?.hot ?? DEFAULTS.injection.budgets.hot,
-        warm:
-          config.injection?.budgets?.warm ?? DEFAULTS.injection.budgets.warm,
-        cold:
-          config.injection?.budgets?.cold ?? DEFAULTS.injection.budgets.cold,
-      },
-    },
+    injection,
     decay: {
       intervalHours:
         config.decay?.intervalHours ?? DEFAULTS.decay.intervalHours,

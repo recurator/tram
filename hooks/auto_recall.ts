@@ -478,11 +478,14 @@ export function createAutoRecallHook(
   vectorHelper: VectorHelper,
   config: ResolvedConfig
 ): AutoRecallHook {
+  // The resolved autoRecall config is always an object with all settings
+  const autoRecallConfig = config.autoRecall;
+
   return new AutoRecallHook(db, embeddingProvider, vectorHelper, {
-    enabled: config.autoRecall,
-    maxItems: config.injection.maxItems,
-    minScore: config.injection.minScore,
-    budgets: config.injection.budgets,
+    enabled: autoRecallConfig.enabled,
+    maxItems: autoRecallConfig.maxItems,
+    minScore: autoRecallConfig.minScore,
+    budgets: autoRecallConfig.budgets,
     scoringWeights: {
       similarity: config.scoring.similarity,
       recency: config.scoring.recency,
