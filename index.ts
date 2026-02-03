@@ -52,6 +52,7 @@ import { initAutoCaptureHook } from "./hooks/auto-capture/handler.js";
 
 import { DecayEngine } from "./core/decay.js";
 import { PromotionEngine } from "./core/promotion.js";
+import { TuningEngine } from "./core/tuning.js";
 
 // Hook handlers
 import autoRecallHandler from "./hooks/auto-recall/handler.js";
@@ -271,16 +272,17 @@ function createEmbeddingProvider(config: ResolvedConfig): EmbeddingProvider {
 }
 
 /**
- * DecayService - Background service for automatic memory tier decay and promotion.
+ * DecayService - Background service for automatic memory tier decay, promotion, and tuning.
  *
- * This service runs the DecayEngine and PromotionEngine on a configurable interval
- * to automatically demote stale memories and promote frequently-used ones.
+ * This service runs the DecayEngine, PromotionEngine, and TuningEngine on a configurable interval
+ * to automatically demote stale memories, promote frequently-used ones, and auto-adjust parameters.
  */
 class DecayService {
   private db: ReturnType<Database["getDb"]>;
   private config: ResolvedConfig;
   private decayEngine: DecayEngine;
   private promotionEngine: PromotionEngine;
+  private tuningEngine: TuningEngine;
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private intervalHours: number;
 
@@ -294,6 +296,7 @@ class DecayService {
     this.config = config;
     this.decayEngine = new DecayEngine(db, config);
     this.promotionEngine = new PromotionEngine(db, config);
+    this.tuningEngine = new TuningEngine(db, config);
     this.intervalHours = config.decay.intervalHours;
   }
 
@@ -327,7 +330,7 @@ class DecayService {
   }
 
   /**
-   * Run one cycle of decay and promotion.
+   * Run one cycle of decay, promotion, and tuning.
    * Called on each interval tick.
    */
   private runCycle(): void {
@@ -335,6 +338,8 @@ class DecayService {
     this.decayEngine.run();
     // Then run promotion engine (promote frequently-used memories)
     this.promotionEngine.run();
+    // Finally run tuning engine (auto-adjust parameters based on tier sizes)
+    this.tuningEngine.run();
   }
 }
 

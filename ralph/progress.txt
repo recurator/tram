@@ -23,7 +23,7 @@ Started: 2026-02-03
 | US-014 | Update access metrics on memory recall | ✅ complete |
 | US-015 | Add tuning config schema | ✅ complete |
 | US-016 | Add reporting config schema | ✅ complete |
-| US-017 | Implement auto-adjustment logic | pending |
+| US-017 | Implement auto-adjustment logic | ✅ complete |
 | US-018 | Log tuning changes | pending |
 | US-019 | Implement user parameter lock | pending |
 | US-020 | Implement notification delivery | pending |
@@ -233,4 +233,18 @@ Started: 2026-02-03
   - Defaults: enabled=true, channel=log, frequency=on-change, includeMetrics=true
   - The config pattern for new sections: Schema → MemoryTieredConfigSchema → ResolvedConfig → DEFAULTS → resolveConfig() → uiHints
   - uiHints for select fields use options array with value/label objects
+---
+
+## 2026-02-03 - US-017
+- What was implemented: TuningEngine class for auto-adjustment of importanceThreshold based on HOT tier size
+- Files changed: core/tuning.ts (new), index.ts, __tests__/tuning_engine.test.ts (new)
+- **Learnings for future iterations:**
+  - TuningEngine follows the same pattern as DecayEngine: constructor(db, config), run() method
+  - Use getTierCounts() to query current tier sizes, excluding do_not_inject memories
+  - getCurrentImportanceThreshold() looks up the most recent non-reverted tuning_log entry, falls back to injection.minScore
+  - isParameterLocked() checks user_override_until against current date to respect user locks
+  - Adjustment logic: if HOT > max target, increase threshold; if HOT < min target, decrease threshold
+  - Always clamp new values to bounds (min/max) using Math.min/Math.max
+  - TuningEngine is integrated into DecayService.runCycle() after decay and promotion engines
+  - tuning_log entries store values as JSON strings for flexibility with different parameter types
 ---
