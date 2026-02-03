@@ -17,7 +17,7 @@ Started: 2026-02-03
 | US-008 | Detect session type at runtime | ✅ complete |
 | US-009 | Session-aware auto-capture | ✅ complete |
 | US-010 | Session-aware default tier | ✅ complete |
-| US-011 | Create injection_feedback table | pending |
+| US-011 | Create injection_feedback table | ✅ complete |
 | US-012 | Create tuning_log table | pending |
 | US-013 | Track proxy metrics post-injection | pending |
 | US-014 | Update access metrics on memory recall | pending |
@@ -159,5 +159,17 @@ Started: 2026-02-03
   - Tier resolution priority: explicit tier param > session default > HOT (ultimate fallback)
   - The TierValue from config ("HOT"/"COLD"/"WARM") can be cast directly to Tier enum
   - Tool wrappers in index.ts can access config and modify params before calling tool.execute()
+---
+
+## 2026-02-03 - US-011
+- What was implemented: Created injection_feedback table for tracking injection outcomes
+- Files changed: db/sqlite.ts, core/types.ts, __tests__/injection_feedback.test.ts (new)
+- **Learnings for future iterations:**
+  - Database schema changes are added to the initialize() method in db/sqlite.ts using CREATE TABLE IF NOT EXISTS (idempotent)
+  - Foreign keys use ON DELETE CASCADE to auto-clean related records
+  - Indexes are created in separate CREATE INDEX IF NOT EXISTS statements for clarity
+  - New table types should be added to core/types.ts as TypeScript interfaces
+  - Test patterns: use helper functions to insert/retrieve records via raw SQL db.getDb()
+  - Foreign key constraints require `PRAGMA foreign_keys = ON` to be enforced in tests
 ---
 
