@@ -16,7 +16,7 @@ A memory extension for [OpenClaw](https://github.com/openclaw/openclaw) that giv
 
 - **4-Tier System** — HOT (active), WARM (established), COLD (dormant), ARCHIVE (preserved)
 - **9 Agent Tools** — Full memory CRUD with pin, explain, and context management
-- **13 CLI Commands** — Complete control from the command line
+- **15 CLI Commands** — Complete control from the command line
 - **Offline-First** — Local embeddings via transformers.js (no API required)
 - **Hybrid Search** — Combines semantic similarity with full-text search (FTS5)
 - **Composite Scoring** — Ranks by similarity × recency × frequency
@@ -24,6 +24,7 @@ A memory extension for [OpenClaw](https://github.com/openclaw/openclaw) that giv
 - **Reversible Forget** — Soft-delete with restore capability
 - **Deduplication** — Prevents storing duplicate memories (95% similarity threshold)
 - **Context Injection** — Auto-recalls relevant memories into agent context
+- **Auto-Tuning** — Intelligent parameter adjustment based on usage patterns (v0.2.0)
 
 ## Installation
 
@@ -115,6 +116,45 @@ extensions:
 | `decay.intervalHours` | `number` | `6` | Hours between automatic decay runs |
 | `context.ttlHours` | `number` | `4` | Default TTL for task context |
 
+#### Tuning Settings
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `tuning.enabled` | `boolean` | `true` | Enable auto-tuning |
+| `tuning.mode` | `string` | `hybrid` | Mode: `auto`, `manual`, `hybrid` |
+| `tuning.lockDurationDays` | `number` | `7` | Days to lock parameter from auto-tuning |
+| `tuning.autoAdjust.importanceThreshold.min` | `number` | `0.1` | Min importance threshold |
+| `tuning.autoAdjust.importanceThreshold.max` | `number` | `0.9` | Max importance threshold |
+| `tuning.autoAdjust.hotTargetSize.min` | `number` | `10` | Min HOT tier target |
+| `tuning.autoAdjust.hotTargetSize.max` | `number` | `50` | Max HOT tier target |
+
+#### Reporting Settings
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `reporting.enabled` | `boolean` | `true` | Enable tuning notifications |
+| `reporting.channel` | `string` | `log` | Channel: `log`, `telegram`, `discord`, `slack`, `none` |
+| `reporting.frequency` | `string` | `on-change` | Frequency: `on-change`, `daily-summary`, `weekly-summary` |
+| `reporting.includeMetrics` | `boolean` | `true` | Include metrics in reports |
+
+#### Session Settings
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `sessions.main.defaultTier` | `string` | `HOT` | Default tier for main sessions |
+| `sessions.main.autoCapture` | `boolean` | `true` | Auto-capture in main sessions |
+| `sessions.main.autoInject` | `boolean` | `true` | Auto-inject in main sessions |
+| `sessions.cron.defaultTier` | `string` | `COLD` | Default tier for cron sessions |
+| `sessions.cron.autoCapture` | `boolean` | `false` | Auto-capture in cron sessions |
+| `sessions.spawned.defaultTier` | `string` | `WARM` | Default tier for spawned sessions |
+
+#### Decay Overrides
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `decay.overrides.[type].hotTTL` | `number\|null` | — | Hours in HOT before demotion (`null` = never) |
+| `decay.overrides.[type].warmTTL` | `number\|null` | — | Days in WARM before demotion (`null` = never) |
+
 ### Full Configuration Example
 
 ```yaml
@@ -149,8 +189,41 @@ extensions:
         cold: 5
     decay:
       intervalHours: 6
+      overrides:
+        procedural:
+          hotTTL: null  # Never demote procedural from HOT
+          warmTTL: 180
+        episodic:
+          hotTTL: 24
+          warmTTL: 30
     context:
       ttlHours: 4
+    tuning:
+      enabled: true
+      mode: hybrid
+      lockDurationDays: 7
+      autoAdjust:
+        importanceThreshold:
+          min: 0.1
+          max: 0.9
+        hotTargetSize:
+          min: 10
+          max: 50
+    reporting:
+      enabled: true
+      channel: log
+      frequency: on-change
+      includeMetrics: true
+    sessions:
+      main:
+        defaultTier: HOT
+        autoCapture: true
+        autoInject: true
+      cron:
+        defaultTier: COLD
+        autoCapture: false
+      spawned:
+        defaultTier: WARM
 ```
 
 ## Tool Reference
@@ -255,7 +328,7 @@ All commands use the `tram-` prefix:
 |---------|-------------|
 | `tram-search <query>` | Search memories with hybrid search |
 | `tram-list` | List memories by tier |
-| `tram-stats` | Display memory statistics |
+| `tram-stats` | Display memory statistics (use `--metrics` for tuning metrics) |
 | `tram-forget <id>` | Forget a memory |
 | `tram-restore <id>` | Restore a forgotten memory |
 | `tram-pin <id>` | Pin a memory |
@@ -266,6 +339,8 @@ All commands use the `tram-` prefix:
 | `tram-decay run` | Manually trigger decay cycle |
 | `tram-index` | Index legacy memory files |
 | `tram-migrate` | Migrate from LanceDB |
+| `tram-lock <param>` | Lock parameter from auto-tuning |
+| `tram-unlock <param>` | Unlock parameter for auto-tuning |
 
 ### CLI Options
 
@@ -298,6 +373,17 @@ openclaw tram-list [options]
 | `--limit <n>` | Max results | `20` |
 | `--json` | Output as JSON | `false` |
 
+#### tram-stats
+
+```bash
+openclaw tram-stats [options]
+```
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--metrics` | Include tuning metrics | `false` |
+| `--json` | Output as JSON | `false` |
+
 #### tram-forget
 
 ```bash
@@ -309,6 +395,20 @@ openclaw tram-forget <id> [options]
 | `--hard` | Permanently delete |
 | `--confirm` | Required with `--hard` |
 | `--json` | Output as JSON |
+
+#### tram-lock / tram-unlock
+
+```bash
+openclaw tram-lock <param>
+openclaw tram-unlock <param>
+```
+
+Lock or unlock a parameter from auto-tuning. Valid parameters include:
+- `importanceThreshold`
+- `hotTargetSize`
+- `scoring.similarity`
+- `scoring.recency`
+- `scoring.frequency`
 
 ### CLI Examples
 
@@ -328,16 +428,59 @@ openclaw tram-list --tier HOT --json
 # Show memory statistics
 openclaw tram-stats
 
+# Show statistics with tuning metrics
+openclaw tram-stats --metrics
+
 # Explain why a memory ranks where it does
 openclaw tram-explain abc123 --query "meeting notes"
 
 # Permanently delete a memory
 openclaw tram-forget abc123 --hard --confirm
 
+# Lock a parameter from auto-tuning
+openclaw tram-lock importanceThreshold
+
+# Unlock a parameter for auto-tuning
+openclaw tram-unlock importanceThreshold
+
 # Migrate from LanceDB (preview first)
 openclaw tram-migrate --from lancedb --preview
 openclaw tram-migrate --from lancedb
 ```
+
+## Benchmarking
+
+TRAM includes a benchmark suite for measuring retrieval quality.
+
+### Running Benchmarks
+
+```bash
+npx ts-node tests/benchmark/run.ts
+```
+
+### Benchmark Dataset
+
+- **85 memories** across 4 types (factual, procedural, episodic, project)
+- **50 test queries** with ground truth relevance judgments
+- Query categories: direct, synonym, temporal, multi-type
+
+### Test Conditions
+
+The benchmark compares:
+1. TRAM default (similarity=0.5, recency=0.3, frequency=0.2)
+2. TRAM similarity-heavy (similarity=0.8)
+3. TRAM with minScore filtering
+4. OpenClaw default
+5. OpenClaw vector-only
+
+### Metrics
+
+- **Precision@K**: Relevant results in top K
+- **Recall@K**: Coverage of relevant results
+- **MRR**: Mean Reciprocal Rank
+- **nDCG**: Normalized Discounted Cumulative Gain
+
+Results are saved to `tests/benchmark/results.json`.
 
 ## Architecture
 
@@ -345,25 +488,28 @@ openclaw tram-migrate --from lancedb
 ┌─────────────────────────────────────────────────────────────┐
 │                         TRAM                                 │
 ├─────────────────────────────────────────────────────────────┤
-│  Tools (9)           │  CLI (13)          │  Hooks          │
+│  Tools (9)           │  CLI (15)          │  Hooks          │
 │  ├── memory_store    │  ├── search        │  ├── auto_recall│
 │  ├── memory_recall   │  ├── list          │  └── auto_capture│
 │  ├── memory_forget   │  ├── stats         │                  │
 │  ├── memory_restore  │  ├── forget        │  Services       │
-│  ├── memory_pin      │  ├── restore       │  └── decay_service│
-│  ├── memory_unpin    │  ├── pin/unpin     │                  │
+│  ├── memory_pin      │  ├── restore       │  ├── decay_service│
+│  ├── memory_unpin    │  ├── pin/unpin     │  └── tuning_service│
 │  ├── memory_explain  │  ├── explain       │                  │
 │  ├── memory_set_ctx  │  ├── set-context   │                  │
 │  └── memory_clear_ctx│  ├── clear-context │                  │
 │                      │  ├── decay run     │                  │
 │                      │  ├── index         │                  │
-│                      │  └── migrate       │                  │
+│                      │  ├── migrate       │                  │
+│                      │  ├── lock          │                  │
+│                      │  └── unlock        │                  │
 ├─────────────────────────────────────────────────────────────┤
 │                        Core                                  │
 │  ├── scorer.ts (composite scoring)                          │
 │  ├── decay.ts (tier demotion)                               │
 │  ├── promotion.ts (tier promotion)                          │
-│  └── injection.ts (context assembly)                        │
+│  ├── injection.ts (context assembly)                        │
+│  └── tuning.ts (auto-tuning engine)                         │
 ├─────────────────────────────────────────────────────────────┤
 │                      Database                                │
 │  ├── sqlite.ts (better-sqlite3)                             │
@@ -439,8 +585,10 @@ Automatically captures important information from conversations.
 ## Requirements
 
 - Node.js 20+ (tested on Node 22)
-- OpenClaw 2026.0.0+
+- OpenClaw 2026.0.0+ (tested with 2026.2.1)
 - SQLite3 (included via better-sqlite3)
+
+For detailed compatibility information with OpenClaw 2026.2.1, see [docs/openclaw-2026.2.1-compat.md](docs/openclaw-2026.2.1-compat.md).
 
 ## Troubleshooting
 
