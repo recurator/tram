@@ -2,7 +2,7 @@
 name: tram-auto-capture
 description: "Automatically capture important information from conversations"
 emoji: "📝"
-events: ["command:stop"]
+events: ["agent_end"]
 ---
 
 # TRAM Auto-Capture Hook
@@ -12,10 +12,12 @@ them in the tiered memory system.
 
 ## Behavior
 
-1. Extracts capturable text segments from the conversation
-2. Detects memory type (procedural, factual, project, episodic)
-3. Checks for duplicates using vector similarity
-4. Stores unique memories in HOT tier with embeddings
+1. Only runs on successful conversations
+2. Extracts capturable text segments (10-500 characters)
+3. Filters noise (system messages, metadata, XML tags)
+4. Detects memory type based on content patterns
+5. Checks for duplicates (95% similarity threshold)
+6. Stores up to 3 unique memories per conversation in HOT tier
 
 ## Configuration
 
@@ -24,11 +26,13 @@ Controlled via plugin config:
 
 ## Events
 
-- **command:stop**: Processes conversation when agent stops
+- **agent_end**: Processes conversation when agent completes
 
 ## Memory Types
 
-- **procedural**: How-to guides, steps, workflows
-- **factual**: Definitions, requirements, syntax
-- **project**: Architecture, components, APIs
-- **episodic**: Discussions, meetings, agreements
+| Type | Detected Patterns |
+|------|-------------------|
+| **procedural** | "how to", "steps to", "workflow", "install", "configure" |
+| **factual** | "is defined as", "means that", "requires", "supports" |
+| **project** | "project", "repository", "architecture", "API", "database" |
+| **episodic** | "yesterday", "we discussed", "meeting", "conversation" |
