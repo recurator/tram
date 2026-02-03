@@ -30,7 +30,7 @@ Started: 2026-02-03
 | US-021 | Add memory_stats metrics dashboard | ✅ complete |
 | US-022 | Create benchmark dataset | ✅ complete |
 | US-023 | Implement benchmark runner | ✅ complete |
-| US-024 | Document OpenClaw 2026.2.1 compatibility | pending |
+| US-024 | Document OpenClaw 2026.2.1 compatibility | ✅ complete |
 | US-025 | Assess before_tool_call integration | pending |
 
 ## Codebase Patterns
@@ -324,4 +324,16 @@ Started: 2026-02-03
   - Group query results by category base name (split on "-") for category breakdown analysis
   - VectorHelper.hybridSearch combines FTS text matching with cosine similarity via configurable weights
   - The benchmark infrastructure enables A/B testing different scoring strategies
+---
+
+## 2026-02-03 - US-024
+- What was implemented: Comprehensive OpenClaw 2026.2.1 compatibility documentation
+- Files changed: docs/openclaw-2026.2.1-compat.md (new)
+- **Learnings for future iterations:**
+  - TRAM uses api.on() for hook registration (before_agent_start, agent_end)
+  - L2 normalization is handled by embedding providers: local uses normalize:true, OpenAI returns pre-normalized vectors
+  - The cosineSimilarity function in VectorHelper handles both normalized and non-normalized vectors correctly
+  - OpenClaw 2026.2.1 introduces before_tool_call hook but TRAM doesn't need it currently
+  - Documentation should include test commands for verifying compatibility
+  - Version compatibility matrices help users understand upgrade paths
 ---
