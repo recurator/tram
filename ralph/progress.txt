@@ -20,7 +20,7 @@ Started: 2026-02-03
 | US-011 | Create injection_feedback table | ✅ complete |
 | US-012 | Create tuning_log table | ✅ complete |
 | US-013 | Track proxy metrics post-injection | ✅ complete |
-| US-014 | Update access metrics on memory recall | pending |
+| US-014 | Update access metrics on memory recall | ✅ complete |
 | US-015 | Add tuning config schema | pending |
 | US-016 | Add reporting config schema | pending |
 | US-017 | Implement auto-adjustment logic | pending |
@@ -195,5 +195,17 @@ Started: 2026-02-03
   - access_frequency starts at 0 and will be incremented by US-014 when memories are recalled
   - TierBudgetAllocator with small maxItems (e.g., 2) may allocate 0 slots due to Math.floor() on percentages
   - Test async behavior with flushSetImmediate() helper: `new Promise(resolve => setImmediate(resolve))`
+---
+
+## 2026-02-03 - US-014
+- What was implemented: Update access_frequency in injection_feedback when memories are recalled
+- Files changed: tools/memory_recall.ts, __tests__/access_frequency.test.ts (new)
+- **Learnings for future iterations:**
+  - The updateAccessStats() method in MemoryRecallTool already increments memory use_count; extend it for feedback
+  - Find most recent injection_feedback by ORDER BY injected_at DESC LIMIT 1 for the memory_id
+  - Skip silently when no feedback exists (memory wasn't auto-injected via auto-recall)
+  - Both use_count in memories table and access_frequency in injection_feedback track usage, but for different purposes
+  - The feedback tracking enables measuring "usefulness" of injected memories over time
+  - Test patterns follow proxy_metrics.test.ts: helper functions for inserting/getting feedback entries
 ---
 
