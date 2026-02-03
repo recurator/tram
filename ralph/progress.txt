@@ -16,7 +16,7 @@ Started: 2026-02-03
 | US-007 | Add sessions config schema | ✅ complete |
 | US-008 | Detect session type at runtime | ✅ complete |
 | US-009 | Session-aware auto-capture | ✅ complete |
-| US-010 | Session-aware default tier | pending |
+| US-010 | Session-aware default tier | ✅ complete |
 | US-011 | Create injection_feedback table | pending |
 | US-012 | Create tuning_log table | pending |
 | US-013 | Track proxy metrics post-injection | pending |
@@ -44,6 +44,7 @@ Started: 2026-02-03
 - createAutoRecallHook extracts all settings from resolved config.autoRecall object (not raw config)
 - Hook handlers use module-level state; to share data between hooks, use exported getter functions like getCurrentSessionType()
 - Session type is accessed via ctx.session?.type and validated against known types; unknown defaults to "main"
+- Tool wrappers in index.ts can modify input params before calling tool.execute() (e.g., inject _sessionDefaultTier)
 
 ## Log
 
@@ -146,5 +147,17 @@ Started: 2026-02-03
   - Default config: main={autoCapture:true}, cron={autoCapture:false}, spawned={autoCapture:false}
   - memory_store tool is independent of session settings - always works regardless of autoCapture flag
   - The PRD references hooks/auto_capture.ts but actual implementation is in hooks/auto-capture/handler.ts
+---
+
+## 2026-02-03 - US-010
+- What was implemented: Session-aware default tier for auto-capture and memory_store
+- Files changed: hooks/auto-capture/handler.ts, tools/memory_store.ts, index.ts, __tests__/session_default_tier.test.ts (new)
+- **Learnings for future iterations:**
+  - Auto-capture's storeMemory() function needs a tier parameter; use config.sessions[currentSessionType].defaultTier
+  - For memory_store tool, add internal _sessionDefaultTier param passed from index.ts execute wrapper
+  - getCurrentSessionType() from auto-capture handler provides session type for memory_store tool
+  - Tier resolution priority: explicit tier param > session default > HOT (ultimate fallback)
+  - The TierValue from config ("HOT"/"COLD"/"WARM") can be cast directly to Tier enum
+  - Tool wrappers in index.ts can access config and modify params before calling tool.execute()
 ---
 
