@@ -17,6 +17,8 @@ import type { ResolvedConfig } from "../config.js";
 export interface StatsOptions {
   /** Output as JSON */
   json?: boolean;
+  /** Show tuning metrics dashboard */
+  metrics?: boolean;
 }
 
 /**
@@ -58,6 +60,70 @@ export interface EmbeddingInfo {
 }
 
 /**
+ * Injection usefulness summary
+ */
+export interface InjectionUsefulnessSummary {
+  /** Average proxy score across all feedback entries */
+  avgProxyScore: number | null;
+  /** Total number of injections recorded */
+  totalInjections: number;
+  /** Total number of tuning adjustments made */
+  adjustmentCount: number;
+  /** Average access frequency per injection */
+  avgAccessFrequency: number;
+}
+
+/**
+ * Config vs targets comparison
+ */
+export interface ConfigVsTargets {
+  /** Current importance threshold value */
+  currentImportanceThreshold: number;
+  /** Importance threshold bounds */
+  importanceThresholdBounds: { min: number; max: number; step: number };
+  /** Current HOT tier count */
+  hotTierCount: number;
+  /** HOT tier target range */
+  hotTargetRange: { min: number; max: number };
+  /** Current WARM tier count */
+  warmTierCount: number;
+  /** WARM tier target range */
+  warmTargetRange: { min: number; max: number };
+}
+
+/**
+ * Recent tuning log entry for display
+ */
+export interface TuningLogEntry {
+  /** Timestamp of the change */
+  timestamp: string;
+  /** Parameter that was changed */
+  parameter: string;
+  /** Previous value */
+  oldValue: string;
+  /** New value */
+  newValue: string;
+  /** Reason for the change */
+  reason: string;
+  /** Source: auto, agent, or user */
+  source: string;
+  /** Whether this is a user lock */
+  isLocked: boolean;
+}
+
+/**
+ * Metrics dashboard result
+ */
+export interface MetricsDashboardResult {
+  /** Injection usefulness summary */
+  injectionUsefulness: InjectionUsefulnessSummary;
+  /** Config vs targets comparison */
+  configVsTargets: ConfigVsTargets;
+  /** Recent tuning log entries */
+  recentTuningLogs: TuningLogEntry[];
+}
+
+/**
  * Stats command result
  */
 export interface StatsCommandResult {
@@ -81,6 +147,8 @@ export interface StatsCommandResult {
   embeddingInfo: EmbeddingInfo;
   /** Last decay run timestamp (ISO 8601) or null if never run */
   lastDecayRun: string | null;
+  /** Metrics dashboard (only present when --metrics flag is used) */
+  metricsDashboard?: MetricsDashboardResult;
 }
 
 /**
@@ -92,6 +160,58 @@ function formatBytes(bytes: number): string {
   const i = Math.floor(Math.log(bytes) / Math.log(1024));
   const size = bytes / Math.pow(1024, i);
   return `${size.toFixed(i === 0 ? 0 : 2)} ${units[i]}`;
+}
+
+/**
+ * Format metrics dashboard for CLI text output
+ */
+function formatMetricsOutput(metrics: MetricsDashboardResult): string {
+  const lines: string[] = [];
+
+  // Header
+  lines.push("Tuning Metrics Dashboard");
+  lines.push("========================");
+  lines.push("");
+
+  // Injection Usefulness Summary
+  lines.push("Injection Usefulness Summary:");
+  const avgScore = metrics.injectionUsefulness.avgProxyScore !== null
+    ? metrics.injectionUsefulness.avgProxyScore.toFixed(3)
+    : "N/A";
+  lines.push(`  Avg Proxy Score:     ${avgScore}`);
+  lines.push(`  Total Injections:    ${metrics.injectionUsefulness.totalInjections}`);
+  lines.push(`  Adjustment Count:    ${metrics.injectionUsefulness.adjustmentCount}`);
+  lines.push(`  Avg Access Freq:     ${metrics.injectionUsefulness.avgAccessFrequency.toFixed(2)}`);
+  lines.push("");
+
+  // Config vs Targets
+  lines.push("Current Config vs Targets:");
+  const cv = metrics.configVsTargets;
+  lines.push(`  Importance Threshold: ${cv.currentImportanceThreshold.toFixed(2)} (bounds: ${cv.importanceThresholdBounds.min}-${cv.importanceThresholdBounds.max}, step: ${cv.importanceThresholdBounds.step})`);
+
+  const hotStatus = cv.hotTierCount < cv.hotTargetRange.min ? "BELOW" :
+                    cv.hotTierCount > cv.hotTargetRange.max ? "ABOVE" : "OK";
+  lines.push(`  HOT Tier:             ${cv.hotTierCount} (target: ${cv.hotTargetRange.min}-${cv.hotTargetRange.max}) [${hotStatus}]`);
+
+  const warmStatus = cv.warmTierCount < cv.warmTargetRange.min ? "BELOW" :
+                     cv.warmTierCount > cv.warmTargetRange.max ? "ABOVE" : "OK";
+  lines.push(`  WARM Tier:            ${cv.warmTierCount} (target: ${cv.warmTargetRange.min}-${cv.warmTargetRange.max}) [${warmStatus}]`);
+  lines.push("");
+
+  // Recent Tuning Log Entries
+  lines.push("Recent Tuning Changes:");
+  if (metrics.recentTuningLogs.length === 0) {
+    lines.push("  No tuning changes recorded");
+  } else {
+    for (const entry of metrics.recentTuningLogs) {
+      const timestamp = entry.timestamp.substring(0, 19).replace("T", " ");
+      const lockIndicator = entry.isLocked ? " [LOCKED]" : "";
+      lines.push(`  ${timestamp} | ${entry.parameter}: ${entry.oldValue} → ${entry.newValue} (${entry.source})${lockIndicator}`);
+      lines.push(`    Reason: ${entry.reason}`);
+    }
+  }
+
+  return lines.join("\n");
 }
 
 /**
@@ -236,11 +356,24 @@ export class MemoryStatsCommand {
       lastDecayRun,
     };
 
+    // Add metrics dashboard if requested
+    if (options.metrics) {
+      result.metricsDashboard = this.getMetricsDashboard(tierStats);
+    }
+
     if (options.json) {
       return JSON.stringify(result, null, 2);
     }
 
-    return formatTextOutput(result);
+    // Format basic stats
+    let output = formatTextOutput(result);
+
+    // Append metrics if requested
+    if (options.metrics && result.metricsDashboard) {
+      output += "\n\n" + formatMetricsOutput(result.metricsDashboard);
+    }
+
+    return output;
   }
 
   /**
@@ -393,6 +526,222 @@ export class MemoryStatsCommand {
 
     const row = stmt.get() as { value: string } | undefined;
     return row?.value ?? null;
+  }
+
+  /**
+   * Get metrics dashboard data for --metrics option
+   */
+  private getMetricsDashboard(tierStats: TierStats[]): MetricsDashboardResult {
+    return {
+      injectionUsefulness: this.getInjectionUsefulness(),
+      configVsTargets: this.getConfigVsTargets(tierStats),
+      recentTuningLogs: this.getRecentTuningLogs(),
+    };
+  }
+
+  /**
+   * Get injection usefulness summary from injection_feedback table
+   */
+  private getInjectionUsefulness(): InjectionUsefulnessSummary {
+    // Check if injection_feedback table exists
+    const tableCheck = this.db.prepare(`
+      SELECT name FROM sqlite_master
+      WHERE type='table' AND name='injection_feedback'
+    `);
+
+    if (!tableCheck.get()) {
+      return {
+        avgProxyScore: null,
+        totalInjections: 0,
+        adjustmentCount: this.getAdjustmentCount(),
+        avgAccessFrequency: 0,
+      };
+    }
+
+    // Get aggregate stats from injection_feedback
+    const stmt = this.db.prepare(`
+      SELECT
+        AVG(proxy_score) as avg_proxy_score,
+        COUNT(*) as total_injections,
+        AVG(access_frequency) as avg_access_frequency
+      FROM injection_feedback
+    `);
+
+    const row = stmt.get() as {
+      avg_proxy_score: number | null;
+      total_injections: number;
+      avg_access_frequency: number | null;
+    };
+
+    return {
+      avgProxyScore: row.avg_proxy_score,
+      totalInjections: row.total_injections,
+      adjustmentCount: this.getAdjustmentCount(),
+      avgAccessFrequency: row.avg_access_frequency ?? 0,
+    };
+  }
+
+  /**
+   * Get count of tuning adjustments (excluding user locks/unlocks that don't change values)
+   */
+  private getAdjustmentCount(): number {
+    // Check if tuning_log table exists
+    const tableCheck = this.db.prepare(`
+      SELECT name FROM sqlite_master
+      WHERE type='table' AND name='tuning_log'
+    `);
+
+    if (!tableCheck.get()) {
+      return 0;
+    }
+
+    // Count adjustments where old_value != new_value (actual parameter changes)
+    const stmt = this.db.prepare(`
+      SELECT COUNT(*) as count
+      FROM tuning_log
+      WHERE old_value != new_value AND reverted = 0
+    `);
+
+    const row = stmt.get() as { count: number };
+    return row.count;
+  }
+
+  /**
+   * Get current config values vs target ranges
+   */
+  private getConfigVsTargets(tierStats: TierStats[]): ConfigVsTargets {
+    // Get current importance threshold from tuning_log or config default
+    const currentThreshold = this.getCurrentImportanceThreshold();
+
+    // Get tier counts from provided stats
+    const hotCount = tierStats.find(t => t.tier === Tier.HOT)?.count ?? 0;
+    const warmCount = tierStats.find(t => t.tier === Tier.WARM)?.count ?? 0;
+
+    // Get bounds from config
+    const bounds = this.config.tuning.autoAdjust.importanceThreshold;
+    const hotTarget = this.config.tuning.autoAdjust.hotTargetSize;
+    const warmTarget = this.config.tuning.autoAdjust.warmTargetSize;
+
+    return {
+      currentImportanceThreshold: currentThreshold,
+      importanceThresholdBounds: {
+        min: bounds.min,
+        max: bounds.max,
+        step: bounds.step,
+      },
+      hotTierCount: hotCount,
+      hotTargetRange: {
+        min: hotTarget.min,
+        max: hotTarget.max,
+      },
+      warmTierCount: warmCount,
+      warmTargetRange: {
+        min: warmTarget.min,
+        max: warmTarget.max,
+      },
+    };
+  }
+
+  /**
+   * Get current importance threshold from tuning_log or config default
+   */
+  private getCurrentImportanceThreshold(): number {
+    // Check if tuning_log table exists
+    const tableCheck = this.db.prepare(`
+      SELECT name FROM sqlite_master
+      WHERE type='table' AND name='tuning_log'
+    `);
+
+    if (!tableCheck.get()) {
+      return this.config.injection.minScore;
+    }
+
+    // Get most recent non-reverted importanceThreshold value
+    const stmt = this.db.prepare(`
+      SELECT new_value
+      FROM tuning_log
+      WHERE parameter = 'importanceThreshold' AND reverted = 0
+      ORDER BY timestamp DESC
+      LIMIT 1
+    `);
+
+    const row = stmt.get() as { new_value: string } | undefined;
+
+    if (row) {
+      try {
+        return JSON.parse(row.new_value);
+      } catch {
+        return this.config.injection.minScore;
+      }
+    }
+
+    return this.config.injection.minScore;
+  }
+
+  /**
+   * Get recent tuning log entries (last 10)
+   */
+  private getRecentTuningLogs(): TuningLogEntry[] {
+    // Check if tuning_log table exists
+    const tableCheck = this.db.prepare(`
+      SELECT name FROM sqlite_master
+      WHERE type='table' AND name='tuning_log'
+    `);
+
+    if (!tableCheck.get()) {
+      return [];
+    }
+
+    // Get recent entries
+    const stmt = this.db.prepare(`
+      SELECT timestamp, parameter, old_value, new_value, reason, source, user_override_until
+      FROM tuning_log
+      WHERE reverted = 0
+      ORDER BY timestamp DESC
+      LIMIT 10
+    `);
+
+    const rows = stmt.all() as Array<{
+      timestamp: string;
+      parameter: string;
+      old_value: string;
+      new_value: string;
+      reason: string;
+      source: string;
+      user_override_until: string | null;
+    }>;
+
+    return rows.map(row => {
+      // Check if this entry represents an active lock
+      const isLocked = row.user_override_until !== null &&
+        new Date(row.user_override_until) > new Date();
+
+      // Format values for display (parse JSON if needed)
+      let oldValue = row.old_value;
+      let newValue = row.new_value;
+      try {
+        const oldParsed = JSON.parse(row.old_value);
+        const newParsed = JSON.parse(row.new_value);
+        if (typeof oldParsed === "number") {
+          oldValue = oldParsed.toFixed(2);
+        }
+        if (typeof newParsed === "number") {
+          newValue = newParsed.toFixed(2);
+        }
+      } catch {
+        // Keep original string values if not valid JSON
+      }
+
+      return {
+        timestamp: row.timestamp,
+        parameter: row.parameter,
+        oldValue,
+        newValue,
+        reason: row.reason,
+        source: row.source,
+        isLocked,
+      };
+    });
   }
 }
 

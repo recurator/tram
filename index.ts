@@ -634,9 +634,11 @@ const plugin: Plugin = {
           .command("tram-stats")
           .description("Display memory statistics and system information")
           .option("--json", "Output as JSON")
+          .option("--metrics", "Show tuning metrics dashboard (injection usefulness, config vs targets, recent changes)")
           .action(async (opts: Record<string, unknown>) => {
             const result = await statsCommand.execute({
               json: opts.json as boolean | undefined,
+              metrics: opts.metrics as boolean | undefined,
             });
             console.log(result);
           });
