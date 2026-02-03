@@ -35,3 +35,6 @@ coverage/
 # Debug logs
 *.log
 npm-debug.log*
+
+# Claude Code settings (personal)
+.claude/
