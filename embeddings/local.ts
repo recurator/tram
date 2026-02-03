@@ -89,18 +89,53 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
   }
 
   async embed(text: string): Promise<number[]> {
+    // Validate input
+    if (!text || typeof text !== "string") {
+      throw new Error("Embedding input must be a non-empty string");
+    }
+    const trimmedText = text.trim();
+    if (trimmedText.length === 0) {
+      throw new Error("Embedding input cannot be empty or whitespace-only");
+    }
+
     await this.initialize();
+
+    // Verify pipeline is loaded
+    if (this.pipeline === null) {
+      throw new Error(
+        `Embedding model '${this.modelPath}' not loaded. ` +
+        `Pipeline initialization may have failed silently.`
+      );
+    }
 
     try {
       // Type assertion since we know the pipeline is a function after initialization
       const output = await (this.pipeline as (input: string, options: { pooling: string; normalize: boolean }) => Promise<{ data: Float32Array | number[] }>)(
-        text,
+        trimmedText,
         { pooling: "mean", normalize: true }
       );
 
+      // Validate output exists
+      if (!output || output.data === undefined || output.data === null) {
+        throw new Error(
+          `Pipeline returned invalid output for text: "${trimmedText.slice(0, 50)}...". ` +
+          `Output: ${JSON.stringify(output)}`
+        );
+      }
+
       // Convert Float32Array or nested array to flat number array
-      const data = output.data;
-      return Array.from(data);
+      const result = Array.from(output.data);
+
+      // Validate dimensions match expected
+      if (result.length !== this.dimensions) {
+        throw new Error(
+          `Embedding dimension mismatch: expected ${this.dimensions}, got ${result.length}. ` +
+          `Model '${this.modelPath}' may not be loaded correctly. ` +
+          `Input text: "${trimmedText.slice(0, 50)}..."`
+        );
+      }
+
+      return result;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Embedding generation failed: ${message}`);
@@ -108,28 +143,76 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
   }
 
   async embedBatch(texts: string[]): Promise<number[][]> {
-    await this.initialize();
-
     if (texts.length === 0) {
       return [];
+    }
+
+    // Validate and clean inputs
+    const cleanedTexts = texts.map((text, index) => {
+      if (!text || typeof text !== "string") {
+        throw new Error(`Embedding input at index ${index} must be a non-empty string`);
+      }
+      const trimmed = text.trim();
+      if (trimmed.length === 0) {
+        throw new Error(`Embedding input at index ${index} cannot be empty or whitespace-only`);
+      }
+      return trimmed;
+    });
+
+    await this.initialize();
+
+    // Verify pipeline is loaded
+    if (this.pipeline === null) {
+      throw new Error(
+        `Embedding model '${this.modelPath}' not loaded. ` +
+        `Pipeline initialization may have failed silently.`
+      );
     }
 
     try {
       // Process texts in batch for better efficiency
       const output = await (this.pipeline as (inputs: string[], options: { pooling: string; normalize: boolean }) => Promise<{ data: Float32Array | number[]; dims: number[] }>)(
-        texts,
+        cleanedTexts,
         { pooling: "mean", normalize: true }
       );
 
+      // Validate output exists
+      if (!output || output.data === undefined || output.data === null) {
+        throw new Error(
+          `Pipeline returned invalid output for batch of ${cleanedTexts.length} texts. ` +
+          `Output: ${JSON.stringify(output)}`
+        );
+      }
+
       // Output has shape [batch_size, dimensions]
-      const batchSize = texts.length;
+      const batchSize = cleanedTexts.length;
       const dims = this.dimensions;
+      const expectedLength = batchSize * dims;
+
+      // Validate total output size
+      if (output.data.length !== expectedLength) {
+        throw new Error(
+          `Batch embedding size mismatch: expected ${expectedLength} values ` +
+          `(${batchSize} texts × ${dims} dimensions), got ${output.data.length}. ` +
+          `Model '${this.modelPath}' may not be loaded correctly.`
+        );
+      }
+
       const results: number[][] = [];
 
       for (let i = 0; i < batchSize; i++) {
         const start = i * dims;
         const end = start + dims;
-        results.push(Array.from(output.data.slice(start, end)));
+        const embedding = Array.from(output.data.slice(start, end));
+
+        // Validate each embedding
+        if (embedding.length !== dims) {
+          throw new Error(
+            `Embedding at index ${i} has wrong dimensions: expected ${dims}, got ${embedding.length}`
+          );
+        }
+
+        results.push(embedding);
       }
 
       return results;
