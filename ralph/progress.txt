@@ -25,7 +25,7 @@ Started: 2026-02-03
 | US-016 | Add reporting config schema | ✅ complete |
 | US-017 | Implement auto-adjustment logic | ✅ complete |
 | US-018 | Log tuning changes | ✅ complete |
-| US-019 | Implement user parameter lock | pending |
+| US-019 | Implement user parameter lock | ✅ complete |
 | US-020 | Implement notification delivery | pending |
 | US-021 | Add memory_stats metrics dashboard | pending |
 | US-022 | Create benchmark dataset | pending |
@@ -258,4 +258,16 @@ Started: 2026-02-03
   - The reason field is human-readable: e.g., "HOT tier exceeded target (60 > 50)"
   - tuning_engine.test.ts already tests that entries are created with correct fields
   - When stories have overlapping functionality, implement in the first story and mark both as complete
+---
+
+## 2026-02-03 - US-019
+- What was implemented: User parameter lock/unlock CLI commands
+- Files changed: cli/lock.ts (new), core/tuning.ts, index.ts, __tests__/lock_unlock.test.ts (new)
+- **Learnings for future iterations:**
+  - CLI commands registered in index.ts follow Commander.js callback pattern with program.command()
+  - Lock/unlock creates tuning_log entries with user_override_until set or cleared
+  - isParameterLocked must check the MOST RECENT entry, not just entries with a lock
+  - SQLite ORDER BY timestamp DESC can be nondeterministic for same-millisecond entries; use rowid as tiebreaker
+  - MemoryLockCommand uses config.tuning.lockDurationDays for lock expiration
+  - LOCKABLE_PARAMETERS constant defines valid parameter names (currently only importanceThreshold)
 ---
