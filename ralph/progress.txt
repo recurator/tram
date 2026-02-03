@@ -18,7 +18,7 @@ Started: 2026-02-03
 | US-009 | Session-aware auto-capture | ✅ complete |
 | US-010 | Session-aware default tier | ✅ complete |
 | US-011 | Create injection_feedback table | ✅ complete |
-| US-012 | Create tuning_log table | pending |
+| US-012 | Create tuning_log table | ✅ complete |
 | US-013 | Track proxy metrics post-injection | pending |
 | US-014 | Update access metrics on memory recall | pending |
 | US-015 | Add tuning config schema | pending |
@@ -171,5 +171,16 @@ Started: 2026-02-03
   - New table types should be added to core/types.ts as TypeScript interfaces
   - Test patterns: use helper functions to insert/retrieve records via raw SQL db.getDb()
   - Foreign key constraints require `PRAGMA foreign_keys = ON` to be enforced in tests
+---
+
+## 2026-02-03 - US-012
+- What was implemented: Created tuning_log table for tracking parameter adjustments
+- Files changed: db/sqlite.ts, core/types.ts, __tests__/tuning_log.test.ts (new)
+- **Learnings for future iterations:**
+  - tuning_log table follows same pattern as injection_feedback: CREATE TABLE IF NOT EXISTS in initialize()
+  - Use CHECK constraint for enum-like columns: `CHECK (source IN ('auto', 'agent', 'user'))`
+  - Indexes on timestamp and parameter columns for efficient lookup of recent changes and per-parameter history
+  - TuningSource type added for type-safe source values
+  - reverted column uses INTEGER (0/1) since SQLite has no native boolean type
 ---
 
