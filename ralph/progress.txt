@@ -12,9 +12,9 @@ Started: 2026-02-03
 | US-003 | Expose full config schema to OpenClaw | ✅ complete |
 | US-004 | Backward compatibility with boolean autoRecall | ✅ complete |
 | US-005 | Add decay overrides config schema | ✅ complete |
-| US-006 | Implement category-aware decay in DecayEngine | pending |
-| US-007 | Add sessions config schema | pending |
-| US-008 | Detect session type at runtime | pending |
+| US-006 | Implement category-aware decay in DecayEngine | ✅ complete |
+| US-007 | Add sessions config schema | ✅ complete |
+| US-008 | Detect session type at runtime | ✅ complete |
 | US-009 | Session-aware auto-capture | pending |
 | US-010 | Session-aware default tier | pending |
 | US-011 | Create injection_feedback table | pending |
@@ -42,6 +42,8 @@ Started: 2026-02-03
 - For union types (boolean | object), use z.union([z.boolean(), ObjectSchema]) and resolve in resolveConfig()
 - ResolvedConfig interfaces should have all fields required (not optional) to ensure type safety
 - createAutoRecallHook extracts all settings from resolved config.autoRecall object (not raw config)
+- Hook handlers use module-level state; to share data between hooks, use exported getter functions like getCurrentSessionType()
+- Session type is accessed via ctx.session?.type and validated against known types; unknown defaults to "main"
 
 ## Log
 
@@ -98,5 +100,39 @@ Started: 2026-02-03
   - The MemoryTypeSchema must exactly match MemoryType enum values from core/types.ts
   - Default value for overrides should be an empty object {} cast to the proper type
   - uiHints for nested objects with per-type fields require explicit field definitions for each type
+---
+
+## 2026-02-03 - US-006
+- What was implemented: Category-aware decay in DecayEngine with per-memory-type TTL overrides
+- Files changed: core/decay.ts, __tests__/decay.test.ts (new)
+- **Learnings for future iterations:**
+  - DecayEngine uses config.decay.overrides[memory_type] for TTL lookup, falling back to config.decay.default
+  - null TTL in overrides means the memory never demotes from that tier (e.g., procedural memories stay HOT forever)
+  - MemoryRow interface in decay.ts needs memory_type field to access the memory's type
+  - Audit log old_value and new_value should include memory_type in JSON context for debugging
+  - Tests can use helper functions (insertMemory, getMemory) to directly manipulate SQLite via db.getDb()
+  - The Database class wrapper doesn't have high-level CRUD methods; tests use raw SQL via better-sqlite3
+---
+
+## 2026-02-03 - US-007
+- What was implemented: Added sessions config schema for per-session-type configuration (main, cron, spawned)
+- Files changed: config.ts
+- **Learnings for future iterations:**
+  - Session settings use a separate TierValueSchema (not the MemoryTypeSchema) for tier selection
+  - The pattern for adding new config sections is: Schema → MemoryTieredConfigSchema → ResolvedConfig → DEFAULTS → resolveConfig() → uiHints
+  - SessionSettingsSchema requires all fields (defaultTier, autoCapture, autoInject) but SessionsConfigSchema makes each session type optional
+  - uiHints for tier selection should use type="select" with options for each tier value
+---
+
+## 2026-02-03 - US-008
+- What was implemented: Session type detection from OpenClaw context at runtime
+- Files changed: hooks/auto-recall/handler.ts, hooks/auto-capture/handler.ts, __tests__/session_type.test.ts (new)
+- **Learnings for future iterations:**
+  - OpenClaw passes session info via ctx.session.type in hook context
+  - Hook handlers use module-level state, so session type is stored in currentSessionType variable
+  - getSessionType() validates against VALID_SESSION_TYPES array and defaults to "main" for unknown/missing
+  - getCurrentSessionType() exported for hooks that need to access session type later
+  - The handler checks config.sessions[sessionType].autoInject/autoCapture before proceeding
+  - SessionContext interface added to AgentContext to type the ctx.session field
 ---
 
