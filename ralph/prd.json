@@ -276,8 +276,8 @@
         "Tests pass"
       ],
       "priority": 18,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented as part of US-017. TuningEngine.logTuningChange() creates entries with all required fields."
     },
     {
       "id": "US-019",

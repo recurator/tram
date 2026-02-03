@@ -24,7 +24,7 @@ Started: 2026-02-03
 | US-015 | Add tuning config schema | ✅ complete |
 | US-016 | Add reporting config schema | ✅ complete |
 | US-017 | Implement auto-adjustment logic | ✅ complete |
-| US-018 | Log tuning changes | pending |
+| US-018 | Log tuning changes | ✅ complete |
 | US-019 | Implement user parameter lock | pending |
 | US-020 | Implement notification delivery | pending |
 | US-021 | Add memory_stats metrics dashboard | pending |
@@ -247,4 +247,15 @@ Started: 2026-02-03
   - Always clamp new values to bounds (min/max) using Math.min/Math.max
   - TuningEngine is integrated into DecayService.runCycle() after decay and promotion engines
   - tuning_log entries store values as JSON strings for flexibility with different parameter types
+---
+
+## 2026-02-03 - US-018
+- What was implemented: Logging of tuning changes (already completed as part of US-017)
+- Files changed: None (implemented in core/tuning.ts as part of US-017)
+- **Learnings for future iterations:**
+  - TuningEngine.logTuningChange() creates tuning_log entries for all parameter changes
+  - Entries include: parameter, old_value, new_value, reason, source, timestamp (all in DB schema)
+  - The reason field is human-readable: e.g., "HOT tier exceeded target (60 > 50)"
+  - tuning_engine.test.ts already tests that entries are created with correct fields
+  - When stories have overlapping functionality, implement in the first story and mark both as complete
 ---
