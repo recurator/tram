@@ -10,7 +10,7 @@ import { VectorHelper } from "../../db/vectors.js";
 import { MemoryScorer } from "../../core/scorer.js";
 import { TierBudgetAllocator } from "../../core/injection.js";
 import { MemorySetContextTool } from "../../tools/memory_set_context.js";
-import type { ResolvedConfig } from "../../config.js";
+import type { ResolvedConfig, SessionTypeValue } from "../../config.js";
 
 /**
  * OpenClaw before_agent_start event interface
@@ -22,6 +22,14 @@ export interface BeforeAgentStartEvent {
 }
 
 /**
+ * OpenClaw session context interface
+ * See: openclaw/src/plugins/types.ts - PluginHookSessionContext
+ */
+export interface SessionContext {
+  type?: string;
+}
+
+/**
  * OpenClaw agent context interface
  * See: openclaw/src/plugins/types.ts - PluginHookAgentContext
  */
@@ -30,6 +38,7 @@ export interface AgentContext {
   sessionKey?: string;
   workspaceDir?: string;
   messageProvider?: string;
+  session?: SessionContext;
 }
 
 /**
@@ -49,6 +58,32 @@ export type HookHandler = (
   ctx: AgentContext
 ) => Promise<BeforeAgentStartResult | void> | BeforeAgentStartResult | void;
 
+// Valid session types (used for validation)
+const VALID_SESSION_TYPES: readonly SessionTypeValue[] = ["main", "cron", "spawned"] as const;
+
+/**
+ * Get the session type from the agent context.
+ * Validates the type against known session types and defaults to "main".
+ * @param ctx - The agent context from the hook event
+ * @returns The session type: "main", "cron", or "spawned"
+ */
+export function getSessionType(ctx: AgentContext): SessionTypeValue {
+  const sessionType = ctx.session?.type;
+
+  // Unknown/missing type defaults to main
+  if (!sessionType) {
+    return "main";
+  }
+
+  // Validate against known types
+  if (VALID_SESSION_TYPES.includes(sessionType as SessionTypeValue)) {
+    return sessionType as SessionTypeValue;
+  }
+
+  // Unknown type defaults to main
+  return "main";
+}
+
 // Module-level state (initialized by plugin registration)
 let db: SqliteDb | null = null;
 let embeddingProvider: EmbeddingProvider | null = null;
@@ -57,6 +92,7 @@ let config: ResolvedConfig | null = null;
 let scorer: MemoryScorer | null = null;
 let allocator: TierBudgetAllocator | null = null;
 let contextTool: MemorySetContextTool | null = null;
+let currentSessionType: SessionTypeValue = "main";
 
 /**
  * Initialize the hook with required dependencies.
@@ -267,7 +303,7 @@ function updateAccessStats(memoryId: string, lastAccessedAt: string, today: stri
  */
 export const handler: HookHandler = async (
   event: BeforeAgentStartEvent,
-  _ctx: AgentContext
+  ctx: AgentContext
 ): Promise<BeforeAgentStartResult | void> => {
   // Check if initialized and enabled
   if (!db || !embeddingProvider || !vectorHelper || !config || !scorer || !allocator || !contextTool) {
@@ -276,6 +312,15 @@ export const handler: HookHandler = async (
   }
 
   if (!config.autoRecall) {
+    return;
+  }
+
+  // Detect session type from context
+  currentSessionType = getSessionType(ctx);
+
+  // Check if auto-inject is enabled for this session type
+  const sessionConfig = config.sessions[currentSessionType];
+  if (!sessionConfig.autoInject) {
     return;
   }
 
@@ -342,5 +387,14 @@ export const handler: HookHandler = async (
     return;
   }
 };
+
+/**
+ * Get the current session type detected from the last hook invocation.
+ * This provides hooks access to the session type via getCurrentSessionType().
+ * @returns The current session type: "main", "cron", or "spawned"
+ */
+export function getCurrentSessionType(): SessionTypeValue {
+  return currentSessionType;
+}
 
 export default handler;

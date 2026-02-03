@@ -8,7 +8,7 @@ import type { Database as SqliteDb } from "better-sqlite3";
 import { Tier, MemoryType } from "../../core/types.js";
 import type { EmbeddingProvider } from "../../embeddings/provider.js";
 import { VectorHelper } from "../../db/vectors.js";
-import type { ResolvedConfig } from "../../config.js";
+import type { ResolvedConfig, SessionTypeValue } from "../../config.js";
 
 /**
  * OpenClaw agent_end event interface
@@ -22,6 +22,14 @@ export interface AgentEndEvent {
 }
 
 /**
+ * OpenClaw session context interface
+ * See: openclaw/src/plugins/types.ts - PluginHookSessionContext
+ */
+export interface SessionContext {
+  type?: string;
+}
+
+/**
  * OpenClaw agent context interface
  * See: openclaw/src/plugins/types.ts - PluginHookAgentContext
  */
@@ -30,6 +38,7 @@ export interface AgentContext {
   sessionKey?: string;
   workspaceDir?: string;
   messageProvider?: string;
+  session?: SessionContext;
 }
 
 /**
@@ -40,11 +49,38 @@ export type HookHandler = (
   ctx: AgentContext
 ) => Promise<void> | void;
 
+// Valid session types (used for validation)
+const VALID_SESSION_TYPES: readonly SessionTypeValue[] = ["main", "cron", "spawned"] as const;
+
+/**
+ * Get the session type from the agent context.
+ * Validates the type against known session types and defaults to "main".
+ * @param ctx - The agent context from the hook event
+ * @returns The session type: "main", "cron", or "spawned"
+ */
+export function getSessionType(ctx: AgentContext): SessionTypeValue {
+  const sessionType = ctx.session?.type;
+
+  // Unknown/missing type defaults to main
+  if (!sessionType) {
+    return "main";
+  }
+
+  // Validate against known types
+  if (VALID_SESSION_TYPES.includes(sessionType as SessionTypeValue)) {
+    return sessionType as SessionTypeValue;
+  }
+
+  // Unknown type defaults to main
+  return "main";
+}
+
 // Module-level state (initialized by plugin registration)
 let db: SqliteDb | null = null;
 let embeddingProvider: EmbeddingProvider | null = null;
 let vectorHelper: VectorHelper | null = null;
 let config: ResolvedConfig | null = null;
+let currentSessionType: SessionTypeValue = "main";
 
 // Configuration defaults
 const MAX_CAPTURES_PER_CONVERSATION = 3;
@@ -354,7 +390,7 @@ async function storeMemory(
  */
 export const handler: HookHandler = async (
   event: AgentEndEvent,
-  _ctx: AgentContext
+  ctx: AgentContext
 ): Promise<void> => {
   // Check if initialized and enabled
   if (!db || !embeddingProvider || !vectorHelper || !config) {
@@ -362,6 +398,16 @@ export const handler: HookHandler = async (
     return;
   }
 
+  // Detect session type from context
+  currentSessionType = getSessionType(ctx);
+
+  // Check if auto-capture is enabled for this session type
+  const sessionConfig = config.sessions[currentSessionType];
+  if (!sessionConfig.autoCapture) {
+    return;
+  }
+
+  // Also check global autoCapture setting
   if (!config.autoCapture) {
     return;
   }
@@ -418,5 +464,14 @@ export const handler: HookHandler = async (
     console.error("[TRAM] Auto-capture error:", error);
   }
 };
+
+/**
+ * Get the current session type detected from the last hook invocation.
+ * This provides hooks access to the session type via getCurrentSessionType().
+ * @returns The current session type: "main", "cron", or "spawned"
+ */
+export function getCurrentSessionType(): SessionTypeValue {
+  return currentSessionType;
+}
 
 export default handler;
