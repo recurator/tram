@@ -67,7 +67,7 @@ extensions:
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `embedding.provider` | `local\|openai\|auto` | `auto` | Embedding provider (`auto` tries local first) |
+| `embedding.provider` | string | `auto` | `local`, `openai`, or `auto` (tries local first) |
 | `embedding.apiKey` | `string` | — | OpenAI API key (or set `OPENAI_API_KEY` env var) |
 | `embedding.model` | `string` | `text-embedding-3-small` | OpenAI model |
 | `embedding.local.modelPath` | `string` | `Xenova/all-MiniLM-L6-v2` | HuggingFace model ID |
