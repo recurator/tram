@@ -11,6 +11,7 @@ import { MemoryScorer } from "../../core/scorer.js";
 import { TierBudgetAllocator } from "../../core/injection.js";
 import { MemorySetContextTool } from "../../tools/memory_set_context.js";
 import type { ResolvedConfig, SessionTypeValue } from "../../config.js";
+import { randomUUID } from "crypto";
 
 /**
  * OpenClaw before_agent_start event interface
@@ -298,6 +299,53 @@ function updateAccessStats(memoryId: string, lastAccessedAt: string, today: stri
 }
 
 /**
+ * Record injection feedback metrics for each injected memory.
+ * This is called asynchronously after injection to avoid blocking.
+ * @param injectedMemoryIds - Array of memory IDs that were injected
+ * @param totalCandidates - Total number of candidate memories before filtering
+ * @param sessionKey - Session key from the context
+ * @param injectedAt - ISO timestamp of when injection occurred
+ */
+function recordInjectionMetrics(
+  injectedMemoryIds: string[],
+  totalCandidates: number,
+  sessionKey: string,
+  injectedAt: string
+): void {
+  if (!db || injectedMemoryIds.length === 0) return;
+
+  try {
+    const injectionDensity = totalCandidates > 0
+      ? injectedMemoryIds.length / totalCandidates
+      : 0;
+
+    const now = new Date().toISOString();
+
+    const insertStmt = db.prepare(`
+      INSERT INTO injection_feedback (
+        id, memory_id, session_key, injected_at, access_frequency,
+        injection_density, created_at
+      ) VALUES (?, ?, ?, ?, 0, ?, ?)
+    `);
+
+    // Insert a feedback row for each injected memory
+    for (const memoryId of injectedMemoryIds) {
+      insertStmt.run(
+        randomUUID(),
+        memoryId,
+        sessionKey,
+        injectedAt,
+        injectionDensity,
+        now
+      );
+    }
+  } catch (error) {
+    // Log error but don't throw - metrics recording shouldn't break injection
+    console.error("[TRAM] Error recording injection metrics:", error);
+  }
+}
+
+/**
  * Hook handler for before_agent_start event.
  * Returns prependContext with relevant memories.
  */
@@ -379,6 +427,17 @@ export const handler: HookHandler = async (
     // Format memories
     const selectedMemories = allocation.selected.map((sm) => sm.memory);
     const formattedXml = formatMemoriesAsXml(selectedMemories, contextText);
+
+    // Record injection metrics asynchronously (don't block injection)
+    const injectedMemoryIds = selectedMemories.map((m) => m.id);
+    const totalCandidates = hybridResults.length;
+    const sessionKey = ctx.sessionKey ?? "unknown";
+    const injectedAt = now.toISOString();
+
+    // Use setImmediate to defer metrics recording
+    setImmediate(() => {
+      recordInjectionMetrics(injectedMemoryIds, totalCandidates, sessionKey, injectedAt);
+    });
 
     console.log(`[TRAM] Injected ${selectedMemories.length} memories into context`);
     return { prependContext: formattedXml };
