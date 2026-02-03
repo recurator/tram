@@ -111,6 +111,8 @@ export type BudgetsConfig = z.infer<typeof BudgetsConfigSchema>;
 export const InjectionConfigSchema = z.object({
   /** Maximum number of memories to inject (default 20) */
   maxItems: z.number().min(1).default(20),
+  /** Minimum composite score for memory to be injected (default 0.2) */
+  minScore: z.number().min(0).max(1).default(0.2),
   /** Budget percentages by tier */
   budgets: BudgetsConfigSchema.optional(),
 });
@@ -186,6 +188,7 @@ export interface ResolvedConfig {
   scoring: { similarity: number; recency: number; frequency: number };
   injection: {
     maxItems: number;
+    minScore: number;
     budgets: { pinned: number; hot: number; warm: number; cold: number };
   };
   decay: { intervalHours: number };
@@ -211,6 +214,7 @@ const DEFAULTS = {
   scoring: { similarity: 0.5, recency: 0.3, frequency: 0.2 },
   injection: {
     maxItems: 20,
+    minScore: 0.2,
     budgets: { pinned: 25, hot: 45, warm: 25, cold: 5 },
   },
   decay: { intervalHours: 6 },
@@ -260,6 +264,7 @@ export function resolveConfig(config: MemoryTieredConfig): ResolvedConfig {
     },
     injection: {
       maxItems: config.injection?.maxItems ?? DEFAULTS.injection.maxItems,
+      minScore: config.injection?.minScore ?? DEFAULTS.injection.minScore,
       budgets: {
         pinned:
           config.injection?.budgets?.pinned ??
@@ -440,6 +445,16 @@ export const uiHints = {
         type: "number",
         min: 1,
         placeholder: "20",
+      },
+      minScore: {
+        label: "Min Score",
+        description:
+          "Minimum composite score required for a memory to be injected (0.0 to 1.0)",
+        type: "slider",
+        min: 0,
+        max: 1,
+        step: 0.05,
+        placeholder: "0.2",
       },
       budgets: {
         label: "Budget Allocation (%)",
