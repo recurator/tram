@@ -55,7 +55,7 @@ import { PromotionEngine } from "./core/promotion.js";
 
 // Hook handlers
 import autoRecallHandler from "./hooks/auto-recall/handler.js";
-import autoCaptureHandler from "./hooks/auto-capture/handler.js";
+import autoCaptureHandler, { getCurrentSessionType } from "./hooks/auto-capture/handler.js";
 
 // CLI command imports
 import { MemorySearchCommand } from "./cli/search.js";
@@ -401,7 +401,14 @@ const plugin: Plugin = {
         source: Type.Optional(Type.String({ description: "Origin of the memory" })),
       }),
       async execute(_toolCallId, params) {
-        const result = await storeTool.execute(params as unknown as Parameters<typeof storeTool.execute>[0]);
+        // Get session's default tier when no explicit tier is provided
+        const inputParams = params as Record<string, unknown>;
+        if (inputParams.tier === undefined) {
+          const sessionType = getCurrentSessionType();
+          const sessionConfig = config.sessions[sessionType];
+          inputParams._sessionDefaultTier = sessionConfig.defaultTier;
+        }
+        const result = await storeTool.execute(inputParams as unknown as Parameters<typeof storeTool.execute>[0]);
         return { content: result.content, details: (result as {details?: unknown}).details };
       },
     });

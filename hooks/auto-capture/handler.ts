@@ -342,11 +342,13 @@ async function isDuplicate(embedding: number[]): Promise<boolean> {
 
 /**
  * Store a new memory in the database.
+ * Uses the session's default tier from config.sessions[sessionType].defaultTier.
  */
 async function storeMemory(
   text: string,
   memoryType: MemoryType,
-  embedding: number[]
+  embedding: number[],
+  tier: Tier
 ): Promise<string> {
   if (!db || !vectorHelper) {
     throw new Error("Database not initialized");
@@ -369,7 +371,7 @@ async function storeMemory(
     0.5,
     null,
     now,
-    Tier.HOT,
+    tier,
     memoryType,
     0,
     0,
@@ -452,8 +454,10 @@ export const handler: HookHandler = async (
         continue;
       }
 
-      // Store the memory
-      await storeMemory(candidate.text, candidate.type, embedding);
+      // Store the memory with session's default tier
+      const sessionConfig = config!.sessions[currentSessionType];
+      const defaultTier = sessionConfig.defaultTier as Tier;
+      await storeMemory(candidate.text, candidate.type, embedding, defaultTier);
       captured++;
     }
 
