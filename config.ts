@@ -159,6 +159,46 @@ export const MemoryTypeSchema = z.enum([
 export type MemoryTypeValue = z.infer<typeof MemoryTypeSchema>;
 
 /**
+ * Tier values for session configuration.
+ * Must match Tier enum from core/types.ts.
+ */
+export const TierValueSchema = z.enum(["HOT", "WARM", "COLD", "ARCHIVE"]);
+export type TierValue = z.infer<typeof TierValueSchema>;
+
+/**
+ * Session type enum values.
+ */
+export const SessionTypeSchema = z.enum(["main", "cron", "spawned"]);
+export type SessionTypeValue = z.infer<typeof SessionTypeSchema>;
+
+/**
+ * Per-session-type configuration.
+ */
+export const SessionSettingsSchema = z.object({
+  /** Default tier for memories captured in this session type */
+  defaultTier: TierValueSchema,
+  /** Whether auto-capture is enabled for this session type */
+  autoCapture: z.boolean(),
+  /** Whether auto-inject (auto-recall) is enabled for this session type */
+  autoInject: z.boolean(),
+});
+export type SessionSettings = z.infer<typeof SessionSettingsSchema>;
+
+/**
+ * Sessions configuration schema.
+ * Allows different behavior for main, cron, and spawned sessions.
+ */
+export const SessionsConfigSchema = z.object({
+  /** Configuration for main (interactive) sessions */
+  main: SessionSettingsSchema.optional(),
+  /** Configuration for cron (scheduled) sessions */
+  cron: SessionSettingsSchema.optional(),
+  /** Configuration for spawned (child) sessions */
+  spawned: SessionSettingsSchema.optional(),
+});
+export type SessionsConfig = z.infer<typeof SessionsConfigSchema>;
+
+/**
  * TTL override for a specific memory type.
  * - hotTTL: Hours before HOT memories demote (null = never demote)
  * - warmTTL: Days before WARM memories demote (null = never demote)
@@ -235,6 +275,8 @@ export const MemoryTieredConfigSchema = z.object({
   decay: DecayConfigSchema.optional(),
   /** Current context settings */
   context: ContextConfigSchema.optional(),
+  /** Per-session-type settings (main, cron, spawned) */
+  sessions: SessionsConfigSchema.optional(),
 });
 
 export type MemoryTieredConfig = z.infer<typeof MemoryTieredConfigSchema>;
@@ -284,6 +326,11 @@ export interface ResolvedConfig {
     overrides: Record<MemoryTypeValue, { hotTTL: number | null; warmTTL: number | null }>;
   };
   context: { ttlHours: number };
+  sessions: {
+    main: { defaultTier: TierValue; autoCapture: boolean; autoInject: boolean };
+    cron: { defaultTier: TierValue; autoCapture: boolean; autoInject: boolean };
+    spawned: { defaultTier: TierValue; autoCapture: boolean; autoInject: boolean };
+  };
 }
 
 /**
@@ -319,6 +366,11 @@ const DEFAULTS = {
     overrides: {} as Record<MemoryTypeValue, { hotTTL: number | null; warmTTL: number | null }>,
   },
   context: { ttlHours: 4 },
+  sessions: {
+    main: { defaultTier: "HOT" as const, autoCapture: true, autoInject: true },
+    cron: { defaultTier: "COLD" as const, autoCapture: false, autoInject: true },
+    spawned: { defaultTier: "WARM" as const, autoCapture: false, autoInject: true },
+  },
 } as const;
 
 /**
@@ -429,6 +481,23 @@ export function resolveConfig(config: MemoryTieredConfig): ResolvedConfig {
     },
     context: {
       ttlHours: config.context?.ttlHours ?? DEFAULTS.context.ttlHours,
+    },
+    sessions: {
+      main: {
+        defaultTier: config.sessions?.main?.defaultTier ?? DEFAULTS.sessions.main.defaultTier,
+        autoCapture: config.sessions?.main?.autoCapture ?? DEFAULTS.sessions.main.autoCapture,
+        autoInject: config.sessions?.main?.autoInject ?? DEFAULTS.sessions.main.autoInject,
+      },
+      cron: {
+        defaultTier: config.sessions?.cron?.defaultTier ?? DEFAULTS.sessions.cron.defaultTier,
+        autoCapture: config.sessions?.cron?.autoCapture ?? DEFAULTS.sessions.cron.autoCapture,
+        autoInject: config.sessions?.cron?.autoInject ?? DEFAULTS.sessions.cron.autoInject,
+      },
+      spawned: {
+        defaultTier: config.sessions?.spawned?.defaultTier ?? DEFAULTS.sessions.spawned.defaultTier,
+        autoCapture: config.sessions?.spawned?.autoCapture ?? DEFAULTS.sessions.spawned.autoCapture,
+        autoInject: config.sessions?.spawned?.autoInject ?? DEFAULTS.sessions.spawned.autoInject,
+      },
     },
   };
 }
@@ -774,6 +843,93 @@ export const uiHints = {
         min: 0.1,
         step: 0.5,
         placeholder: "4",
+      },
+    },
+  },
+  sessions: {
+    label: "Session Settings",
+    description: "Configure per-session-type behavior for main, cron, and spawned sessions",
+    fields: {
+      main: {
+        label: "Main Sessions",
+        description: "Settings for interactive (main) sessions",
+        fields: {
+          defaultTier: {
+            label: "Default Tier",
+            description: "Default tier for memories captured in main sessions",
+            type: "select",
+            options: [
+              { value: "HOT", label: "HOT" },
+              { value: "WARM", label: "WARM" },
+              { value: "COLD", label: "COLD" },
+              { value: "ARCHIVE", label: "ARCHIVE" },
+            ],
+          },
+          autoCapture: {
+            label: "Auto-Capture",
+            description: "Automatically capture memories in main sessions",
+            type: "toggle",
+          },
+          autoInject: {
+            label: "Auto-Inject",
+            description: "Automatically inject memories into main sessions",
+            type: "toggle",
+          },
+        },
+      },
+      cron: {
+        label: "Cron Sessions",
+        description: "Settings for scheduled (cron) sessions",
+        fields: {
+          defaultTier: {
+            label: "Default Tier",
+            description: "Default tier for memories captured in cron sessions",
+            type: "select",
+            options: [
+              { value: "HOT", label: "HOT" },
+              { value: "WARM", label: "WARM" },
+              { value: "COLD", label: "COLD" },
+              { value: "ARCHIVE", label: "ARCHIVE" },
+            ],
+          },
+          autoCapture: {
+            label: "Auto-Capture",
+            description: "Automatically capture memories in cron sessions",
+            type: "toggle",
+          },
+          autoInject: {
+            label: "Auto-Inject",
+            description: "Automatically inject memories into cron sessions",
+            type: "toggle",
+          },
+        },
+      },
+      spawned: {
+        label: "Spawned Sessions",
+        description: "Settings for child (spawned) sessions",
+        fields: {
+          defaultTier: {
+            label: "Default Tier",
+            description: "Default tier for memories captured in spawned sessions",
+            type: "select",
+            options: [
+              { value: "HOT", label: "HOT" },
+              { value: "WARM", label: "WARM" },
+              { value: "COLD", label: "COLD" },
+              { value: "ARCHIVE", label: "ARCHIVE" },
+            ],
+          },
+          autoCapture: {
+            label: "Auto-Capture",
+            description: "Automatically capture memories in spawned sessions",
+            type: "toggle",
+          },
+          autoInject: {
+            label: "Auto-Inject",
+            description: "Automatically inject memories into spawned sessions",
+            type: "toggle",
+          },
+        },
       },
     },
   },
