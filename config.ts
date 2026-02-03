@@ -147,11 +147,51 @@ export const AutoRecallConfigSchema = z.union([
 export type AutoRecallConfig = z.infer<typeof AutoRecallConfigSchema>;
 
 /**
+ * Memory type enum values for decay overrides.
+ * Must match MemoryType enum from core/types.ts.
+ */
+export const MemoryTypeSchema = z.enum([
+  "factual",
+  "procedural",
+  "episodic",
+  "project",
+]);
+export type MemoryTypeValue = z.infer<typeof MemoryTypeSchema>;
+
+/**
+ * TTL override for a specific memory type.
+ * - hotTTL: Hours before HOT memories demote (null = never demote)
+ * - warmTTL: Days before WARM memories demote (null = never demote)
+ */
+export const DecayTTLOverrideSchema = z.object({
+  /** Hours before HOT memories demote to COLD (null = no decay) */
+  hotTTL: z.union([z.number().min(1), z.null()]),
+  /** Days before WARM memories demote to COLD (null = no decay) */
+  warmTTL: z.union([z.number().min(1), z.null()]),
+});
+export type DecayTTLOverride = z.infer<typeof DecayTTLOverrideSchema>;
+
+/**
+ * Default TTL values used when no override exists for a memory type.
+ */
+export const DecayDefaultsSchema = z.object({
+  /** Default hours before HOT memories demote to COLD */
+  hotTTL: z.number().min(1).default(72),
+  /** Default days before WARM memories demote to COLD */
+  warmTTL: z.number().min(1).default(60),
+});
+export type DecayDefaults = z.infer<typeof DecayDefaultsSchema>;
+
+/**
  * Decay service configuration
  */
 export const DecayConfigSchema = z.object({
   /** Hours between decay runs (default 6) */
   intervalHours: z.number().min(1).default(6),
+  /** Default TTL values when no override exists */
+  default: DecayDefaultsSchema.optional(),
+  /** Per-memory-type TTL overrides (keys: factual, procedural, episodic, project) */
+  overrides: z.record(MemoryTypeSchema, DecayTTLOverrideSchema).optional(),
 });
 export type DecayConfig = z.infer<typeof DecayConfigSchema>;
 
@@ -238,7 +278,11 @@ export interface ResolvedConfig {
     minScore: number;
     budgets: { pinned: number; hot: number; warm: number; cold: number };
   };
-  decay: { intervalHours: number };
+  decay: {
+    intervalHours: number;
+    default: { hotTTL: number; warmTTL: number };
+    overrides: Record<MemoryTypeValue, { hotTTL: number | null; warmTTL: number | null }>;
+  };
   context: { ttlHours: number };
 }
 
@@ -269,7 +313,11 @@ const DEFAULTS = {
     minScore: 0.2,
     budgets: { pinned: 25, hot: 45, warm: 25, cold: 5 },
   },
-  decay: { intervalHours: 6 },
+  decay: {
+    intervalHours: 6,
+    default: { hotTTL: 72, warmTTL: 60 },
+    overrides: {} as Record<MemoryTypeValue, { hotTTL: number | null; warmTTL: number | null }>,
+  },
   context: { ttlHours: 4 },
 } as const;
 
@@ -370,6 +418,14 @@ export function resolveConfig(config: MemoryTieredConfig): ResolvedConfig {
     decay: {
       intervalHours:
         config.decay?.intervalHours ?? DEFAULTS.decay.intervalHours,
+      default: {
+        hotTTL: config.decay?.default?.hotTTL ?? DEFAULTS.decay.default.hotTTL,
+        warmTTL: config.decay?.default?.warmTTL ?? DEFAULTS.decay.default.warmTTL,
+      },
+      overrides: (config.decay?.overrides ?? {}) as Record<
+        MemoryTypeValue,
+        { hotTTL: number | null; warmTTL: number | null }
+      >,
     },
     context: {
       ttlHours: config.context?.ttlHours ?? DEFAULTS.context.ttlHours,
@@ -589,7 +645,7 @@ export const uiHints = {
   },
   decay: {
     label: "Decay Settings",
-    description: "Configure the background decay service",
+    description: "Configure the background decay service and per-type TTLs",
     fields: {
       intervalHours: {
         label: "Interval (hours)",
@@ -597,6 +653,113 @@ export const uiHints = {
         type: "number",
         min: 1,
         placeholder: "6",
+      },
+      default: {
+        label: "Default TTLs",
+        description: "Fallback TTL values when no override exists for a memory type",
+        fields: {
+          hotTTL: {
+            label: "Hot TTL (hours)",
+            description: "Hours before HOT memories demote to COLD",
+            type: "number",
+            min: 1,
+            placeholder: "72",
+          },
+          warmTTL: {
+            label: "Warm TTL (days)",
+            description: "Days of inactivity before WARM memories demote to COLD",
+            type: "number",
+            min: 1,
+            placeholder: "60",
+          },
+        },
+      },
+      overrides: {
+        label: "Per-Type Overrides",
+        description: "Override TTLs for specific memory types (null = never demote)",
+        type: "object",
+        fields: {
+          factual: {
+            label: "Factual Memories",
+            description: "TTL overrides for factual memories (facts, data)",
+            fields: {
+              hotTTL: {
+                label: "Hot TTL (hours)",
+                description: "Hours before HOT demotes (null = never)",
+                type: "number",
+                nullable: true,
+                min: 1,
+              },
+              warmTTL: {
+                label: "Warm TTL (days)",
+                description: "Days before WARM demotes (null = never)",
+                type: "number",
+                nullable: true,
+                min: 1,
+              },
+            },
+          },
+          procedural: {
+            label: "Procedural Memories",
+            description: "TTL overrides for procedural memories (how-to knowledge)",
+            fields: {
+              hotTTL: {
+                label: "Hot TTL (hours)",
+                description: "Hours before HOT demotes (null = never)",
+                type: "number",
+                nullable: true,
+                min: 1,
+              },
+              warmTTL: {
+                label: "Warm TTL (days)",
+                description: "Days before WARM demotes (null = never)",
+                type: "number",
+                nullable: true,
+                min: 1,
+              },
+            },
+          },
+          episodic: {
+            label: "Episodic Memories",
+            description: "TTL overrides for episodic memories (conversation/event)",
+            fields: {
+              hotTTL: {
+                label: "Hot TTL (hours)",
+                description: "Hours before HOT demotes (null = never)",
+                type: "number",
+                nullable: true,
+                min: 1,
+              },
+              warmTTL: {
+                label: "Warm TTL (days)",
+                description: "Days before WARM demotes (null = never)",
+                type: "number",
+                nullable: true,
+                min: 1,
+              },
+            },
+          },
+          project: {
+            label: "Project Memories",
+            description: "TTL overrides for project-specific context",
+            fields: {
+              hotTTL: {
+                label: "Hot TTL (hours)",
+                description: "Hours before HOT demotes (null = never)",
+                type: "number",
+                nullable: true,
+                min: 1,
+              },
+              warmTTL: {
+                label: "Warm TTL (days)",
+                description: "Days before WARM demotes (null = never)",
+                type: "number",
+                nullable: true,
+                min: 1,
+              },
+            },
+          },
+        },
       },
     },
   },

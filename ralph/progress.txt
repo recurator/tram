@@ -10,8 +10,8 @@ Started: 2026-02-03
 | US-001 | Add minScore to injection config schema | ✅ complete |
 | US-002 | Filter candidates by minScore in auto-recall | ✅ complete |
 | US-003 | Expose full config schema to OpenClaw | ✅ complete |
-| US-004 | Backward compatibility with boolean autoRecall | pending |
-| US-005 | Add decay overrides config schema | pending |
+| US-004 | Backward compatibility with boolean autoRecall | ✅ complete |
+| US-005 | Add decay overrides config schema | ✅ complete |
 | US-006 | Implement category-aware decay in DecayEngine | pending |
 | US-007 | Add sessions config schema | pending |
 | US-008 | Detect session type at runtime | pending |
@@ -39,6 +39,9 @@ Started: 2026-02-03
 - UI hints use specific types: "slider" for 0-1 ranges, "number" for counts, "toggle" for booleans
 - AutoRecallHook uses MemoryScorer for composite scoring; to filter by score, call scorer.score() directly before allocation
 - Tests for auto_recall use mocked database, embedding provider, and vector helper
+- For union types (boolean | object), use z.union([z.boolean(), ObjectSchema]) and resolve in resolveConfig()
+- ResolvedConfig interfaces should have all fields required (not optional) to ensure type safety
+- createAutoRecallHook extracts all settings from resolved config.autoRecall object (not raw config)
 
 ## Log
 
@@ -71,5 +74,29 @@ Started: 2026-02-03
   - uiHints already covers all config sections: injection.*, scoring.*, tiers.*, decay.*
   - The configSchema.parse() is used in register() to parse and validate config from openclaw.json
   - README should document all config options to help users discover them
+---
+
+## 2026-02-03 - US-004
+- What was implemented: Backward compatibility allowing autoRecall to be boolean or object
+- Files changed: config.ts, hooks/auto_recall.ts, __tests__/config.test.ts (new)
+- **Learnings for future iterations:**
+  - Use z.union([z.boolean(), ObjectSchema]) for backward-compatible config options
+  - Create a dedicated resolve function (resolveAutoRecall) to handle union type normalization
+  - The ResolvedConfig interface should always use the fully-resolved object type, never the union
+  - When the object form has optional values, fall back to injection config (not defaults) for DRY
+  - Test backward compatibility explicitly: boolean true, boolean false, object with partial values, full v0.1.x configs
+  - Empty object {} should be valid input, relying on defaults from injection config
+---
+
+## 2026-02-03 - US-005
+- What was implemented: Added decay overrides config schema with per-memory-type TTLs
+- Files changed: config.ts
+- **Learnings for future iterations:**
+  - Use z.record(MemoryTypeSchema, ValueSchema) for type-keyed maps with constrained keys
+  - For nullable values, use z.union([z.number().min(1), z.null()]) to allow null or positive numbers
+  - Create separate schemas for nested objects (DecayTTLOverrideSchema, DecayDefaultsSchema) for clarity
+  - The MemoryTypeSchema must exactly match MemoryType enum values from core/types.ts
+  - Default value for overrides should be an empty object {} cast to the proper type
+  - uiHints for nested objects with per-type fields require explicit field definitions for each type
 ---
 
