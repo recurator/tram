@@ -68,7 +68,6 @@ export interface MemoryTuneResult {
     agentId: string;
     persisted: boolean;
     changes: string[];
-    warnings: string[];
   };
 }
 
@@ -157,31 +156,21 @@ export class MemoryTuneTool {
       }
     }
 
-    // Warnings (currently unused, kept for interface compatibility)
-    const warnings: string[] = [];
-
     // Apply changes based on scope
     if (params.retrieval || params.decay || params.promotion) {
-      // Decay and promotion require persist=true (they affect ALL memories system-wide)
-      if (scope === "session" && (params.decay || params.promotion)) {
-        const systemWide = [
-          params.decay ? "decay" : null,
-          params.promotion ? "promotion" : null,
-        ].filter(Boolean).join(" and ");
-
-        return this.errorResult(
-          `Cannot set ${systemWide} in session scope. ` +
-          `These profiles affect ALL memories system-wide and require persist=true.\n\n` +
-          `Use: memory_tune({ ${params.decay ? `decay: "${params.decay}"` : ""}${params.decay && params.promotion ? ", " : ""}${params.promotion ? `promotion: "${params.promotion}"` : ""}, persist: true })\n\n` +
-          `Retrieval profiles can use session scope (affects only what gets injected into context).`
-        );
-      }
-
       if (scope === "session") {
-        // Session-only changes (in-memory) - only retrieval allowed here
+        // Session-only changes (in-memory)
         if (params.retrieval) {
           sessionOverrides.retrieval = params.retrieval;
           changes.push(`retrieval → ${params.retrieval} (session)`);
+        }
+        if (params.decay) {
+          sessionOverrides.decay = params.decay;
+          changes.push(`decay → ${params.decay} (session)`);
+        }
+        if (params.promotion) {
+          sessionOverrides.promotion = params.promotion;
+          changes.push(`promotion → ${params.promotion} (session)`);
         }
       } else if (persist) {
         // Persistent changes require config file modification
@@ -220,7 +209,6 @@ export class MemoryTuneTool {
       agentId: currentAgentId,
       persisted: persist && scope !== "session",
       changes,
-      warnings,
     };
 
     // Format text response
@@ -243,13 +231,6 @@ export class MemoryTuneTool {
       text += `\n**Changes Applied:**\n`;
       for (const change of changes) {
         text += `- ${change}\n`;
-      }
-    }
-
-    if (warnings.length > 0) {
-      text += `\n**Warnings:**\n`;
-      for (const warning of warnings) {
-        text += `${warning}\n\n`;
       }
     }
 
@@ -467,7 +448,6 @@ export class MemoryTuneTool {
         agentId: currentAgentId,
         persisted: false,
         changes: [],
-        warnings: [],
       },
     };
   }
