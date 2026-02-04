@@ -85,10 +85,11 @@ extensions:
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `tiers.hot.ttlHours` | `number` | `72` | Hours before HOT demotes to COLD |
+| `tiers.hot.ttlHours` | `number\|string` | `72` | Hours in HOT before demoting to WARM (or duration string like '3d') |
 | `tiers.warm.demotionDays` | `number` | `60` | Days of inactivity before WARM demotes |
 | `tiers.cold.promotionUses` | `number` | `3` | Uses required for COLD → WARM promotion |
 | `tiers.cold.promotionDays` | `number` | `2` | Distinct days required for promotion |
+| `tiers.cold.ttlDays` | `number\|string` | `180` | Days in COLD before demoting to ARCHIVE (or duration string) |
 
 #### Scoring Weights
 
@@ -108,6 +109,7 @@ extensions:
 | `injection.budgets.hot` | `number` | `45` | % of slots for HOT tier |
 | `injection.budgets.warm` | `number` | `25` | % of slots for WARM tier |
 | `injection.budgets.cold` | `number` | `5` | % of slots for COLD tier |
+| `injection.budgets.archive` | `number` | `0` | % of slots for ARCHIVE tier |
 
 #### Other Settings
 
@@ -152,8 +154,46 @@ extensions:
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `decay.overrides.[type].hotTTL` | `number\|null` | — | Hours in HOT before demotion (`null` = never) |
-| `decay.overrides.[type].warmTTL` | `number\|null` | — | Days in WARM before demotion (`null` = never) |
+| `decay.overrides.[type].hotTTL` | `number\|string\|null` | — | Hours in HOT before demotion (`null` = never) |
+| `decay.overrides.[type].warmTTL` | `number\|string\|null` | — | Days in WARM before demotion (`null` = never) |
+| `decay.overrides.[type].coldTTL` | `number\|string\|null` | — | Days in COLD before demotion (`null` = never) |
+
+#### Profile Presets
+
+TRAM includes built-in profiles for common use cases. See [docs/use-cases.md](docs/use-cases.md) for detailed examples.
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `retrieval.profile` | string | `focused` | Active retrieval profile |
+| `retrieval.profiles` | object | — | Custom retrieval profile definitions |
+| `decay.profile` | string | `thorough` | Active decay profile |
+| `decay.profiles` | object | — | Custom decay profile definitions |
+| `promotion.profile` | string | `selective` | Active promotion profile |
+| `promotion.profiles` | object | — | Custom promotion profile definitions |
+| `agents.<id>.retrieval` | string | — | Agent-specific retrieval profile |
+| `agents.<id>.decay` | string | — | Agent-specific decay profile |
+| `agents.<id>.promotion` | string | — | Agent-specific promotion profile |
+
+**Built-in Retrieval Profiles:**
+- `narrow` — 70% HOT, focus on most recent
+- `focused` — 50% HOT, 30% WARM (default)
+- `balanced` — Equal across tiers
+- `broad` — 45% ARCHIVE, include history
+- `expansive` — 80% ARCHIVE, deep history
+
+**Built-in Decay Profiles:**
+- `forgetful` — 5m/15m/1h (quick forget)
+- `casual` — 15m/1h/4h
+- `attentive` — 1h/4h/24h
+- `thorough` — 1d/7d/30d (default)
+- `retentive` — 7d/60d/180d (long retention)
+
+**Built-in Promotion Profiles:**
+- `forgiving` — 1 use, 1 day
+- `fair` — 2 uses, 2 days
+- `selective` — 3 uses, 2 days (default)
+- `demanding` — 5 uses, 3 days
+- `ruthless` — 10 uses, 5 days
 
 ### Full Configuration Example
 
@@ -196,6 +236,18 @@ extensions:
         episodic:
           hotTTL: 24
           warmTTL: 30
+    # Memory profiles
+    retrieval:
+      profile: focused
+    decay:
+      profile: thorough
+    promotion:
+      profile: selective
+    # Agent-specific overrides
+    agents:
+      cron:
+        retrieval: narrow
+        decay: casual
     context:
       ttlHours: 4
     tuning:
@@ -241,6 +293,7 @@ extensions:
 | `memory_explain` | Explain how a memory is scored |
 | `memory_set_context` | Set active task context for recall |
 | `memory_clear_context` | Clear the current context |
+| `memory_tune` | Adjust retrieval, decay, or promotion profiles at runtime |
 
 ### Tool Parameters
 
@@ -288,6 +341,16 @@ extensions:
 |-----------|------|----------|---------|-------------|
 | `text` | string | Yes | — | Context text |
 | `ttlHours` | number | No | `4` | Time-to-live in hours |
+
+#### memory_tune
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `retrieval` | string | No | — | Retrieval profile name |
+| `decay` | string | No | — | Decay profile name |
+| `promotion` | string | No | — | Promotion profile name |
+| `persist` | boolean | No | `false` | Save to config file |
+| `scope` | string | No | `session` | Where to persist: `session`, `agent`, `global` |
 
 ### Tool Examples
 
@@ -509,6 +572,7 @@ Results are saved to `tests/benchmark/results.json`.
 │  ├── decay.ts (tier demotion)                               │
 │  ├── promotion.ts (tier promotion)                          │
 │  ├── injection.ts (context assembly)                        │
+│  ├── profiles.ts (profile presets)                          │
 │  └── tuning.ts (auto-tuning engine)                         │
 ├─────────────────────────────────────────────────────────────┤
 │                      Database                                │
@@ -530,15 +594,12 @@ Results are saved to `tests/benchmark/results.json`.
      └───┬────┘
          │ store
          ▼
-     ┌────────┐    72h no access     ┌────────┐
-     │  HOT   │ ─────────────────────▶│  COLD  │
-     └────────┘                       └───┬────┘
-         ▲                                │
-         │ 3+ uses on 2+ days             │ 60+ days inactive
-         │                                ▼
-     ┌────────┐                      ┌─────────┐
-     │  WARM  │◀─────────────────────│ ARCHIVE │
-     └────────┘   manual restore     └─────────┘
+     ┌────────┐  TTL expired   ┌────────┐  TTL expired   ┌────────┐  TTL expired   ┌─────────┐
+     │  HOT   │ ──────────────▶│  WARM  │ ──────────────▶│  COLD  │ ──────────────▶│ ARCHIVE │
+     └────────┘                └────────┘                └────────┘                └─────────┘
+         ▲                         ▲                         ▲
+         │         promotion       │        promotion        │
+         └─────────────────────────┴─────────────────────────┘
 ```
 
 ### Composite Scoring

@@ -85,6 +85,7 @@ describe("TierBudgetAllocator", () => {
         hot: 0.4,
         warm: 0.2,
         cold: 0.1,
+        archive: 0,
       };
       const customAllocator = new TierBudgetAllocator({
         budgets: customBudgets,
@@ -679,7 +680,7 @@ describe("TierBudgetAllocator", () => {
       expect(result.selected.length).toBe(0);
       expect(result.excludedCount).toBe(0);
       expect(result.totalConsidered).toBe(0);
-      expect(result.breakdown).toEqual({ pinned: 0, hot: 0, warm: 0, cold: 0 });
+      expect(result.breakdown).toEqual({ pinned: 0, hot: 0, warm: 0, cold: 0, archive: 0 });
     });
 
     it("should handle all memories excluded", () => {

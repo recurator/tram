@@ -8,6 +8,12 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 
 /**
+ * Duration or number schema for TTL values (backwards compatible).
+ * Accepts either a duration string ("1h", "7d") or a number.
+ */
+export const DurationOrNumberSchema = z.union([z.string(), z.number()]);
+
+/**
  * Supported embedding providers
  */
 export const EmbeddingProviderSchema = z.enum([
@@ -102,6 +108,8 @@ export const BudgetsConfigSchema = z.object({
   warm: z.number().min(0).max(100).default(25),
   /** Percentage of slots for COLD tier (default 5) */
   cold: z.number().min(0).max(100).default(5),
+  /** Percentage of slots for ARCHIVE tier (default 0, never auto-injected) */
+  archive: z.number().min(0).max(100).default(0),
 });
 export type BudgetsConfig = z.infer<typeof BudgetsConfigSchema>;
 
@@ -199,6 +207,91 @@ export type ReportingChannelValue = z.infer<typeof ReportingChannelSchema>;
  */
 export const ReportingFrequencySchema = z.enum(["on-change", "daily-summary", "weekly-summary"]);
 export type ReportingFrequencyValue = z.infer<typeof ReportingFrequencySchema>;
+
+/**
+ * Retrieval profile preset names
+ */
+export const RetrievalProfileNameSchema = z.enum(["narrow", "focused", "balanced", "broad", "expansive"]);
+
+/**
+ * Decay profile preset names
+ */
+export const DecayProfileNameSchema = z.enum(["forgetful", "casual", "attentive", "thorough", "retentive"]);
+
+/**
+ * Promotion profile preset names
+ */
+export const PromotionProfileNameSchema = z.enum(["forgiving", "fair", "selective", "demanding", "ruthless"]);
+
+/**
+ * Agent-specific profile overrides
+ */
+export const AgentProfilesSchema = z.object({
+  /** Retrieval profile for this agent */
+  retrieval: z.string().optional(),
+  /** Decay profile for this agent */
+  decay: z.string().optional(),
+  /** Promotion profile for this agent */
+  promotion: z.string().optional(),
+});
+export type AgentProfiles = z.infer<typeof AgentProfilesSchema>;
+
+/**
+ * Custom retrieval profile definition
+ */
+export const CustomRetrievalProfileSchema = z.object({
+  hot: z.number().min(0).max(100),
+  warm: z.number().min(0).max(100),
+  cold: z.number().min(0).max(100),
+  archive: z.number().min(0).max(100),
+});
+
+/**
+ * Custom decay profile definition
+ */
+export const CustomDecayProfileSchema = z.object({
+  hotTtl: DurationOrNumberSchema,
+  warmTtl: DurationOrNumberSchema,
+  coldTtl: DurationOrNumberSchema,
+});
+
+/**
+ * Custom promotion profile definition
+ */
+export const CustomPromotionProfileSchema = z.object({
+  uses: z.number().min(1),
+  days: z.number().min(1),
+});
+
+/**
+ * Profile configuration schema for retrieval, decay, and promotion profiles
+ */
+export const ProfilesConfigSchema = z.object({
+  /** Retrieval profile configuration */
+  retrieval: z.object({
+    /** Active profile name */
+    profile: z.string().default("focused"),
+    /** Custom profile definitions */
+    profiles: z.record(z.string(), CustomRetrievalProfileSchema).optional(),
+  }).optional(),
+  /** Decay profile configuration */
+  decay: z.object({
+    /** Active profile name */
+    profile: z.string().default("thorough"),
+    /** Custom profile definitions */
+    profiles: z.record(z.string(), CustomDecayProfileSchema).optional(),
+  }).optional(),
+  /** Promotion profile configuration */
+  promotion: z.object({
+    /** Active profile name */
+    profile: z.string().default("selective"),
+    /** Custom profile definitions */
+    profiles: z.record(z.string(), CustomPromotionProfileSchema).optional(),
+  }).optional(),
+  /** Agent-specific profile overrides */
+  agents: z.record(z.string(), AgentProfilesSchema).optional(),
+});
+export type ProfilesConfig = z.infer<typeof ProfilesConfigSchema>;
 
 /**
  * Per-session-type configuration.
@@ -301,14 +394,17 @@ export type ReportingConfig = z.infer<typeof ReportingConfigSchema>;
 
 /**
  * TTL override for a specific memory type.
- * - hotTTL: Hours before HOT memories demote (null = never demote)
- * - warmTTL: Days before WARM memories demote (null = never demote)
+ * - hotTTL: Time before HOT memories demote (null = never demote)
+ * - warmTTL: Time before WARM memories demote (null = never demote)
+ * - coldTTL: Time before COLD memories demote to ARCHIVE (null = never demote)
  */
 export const DecayTTLOverrideSchema = z.object({
-  /** Hours before HOT memories demote to COLD (null = no decay) */
-  hotTTL: z.union([z.number().min(1), z.null()]),
-  /** Days before WARM memories demote to COLD (null = no decay) */
-  warmTTL: z.union([z.number().min(1), z.null()]),
+  /** Time before HOT memories demote to WARM (hours, duration string, or null = no decay) */
+  hotTTL: z.union([DurationOrNumberSchema, z.null()]),
+  /** Time before WARM memories demote to COLD (days, duration string, or null = no decay) */
+  warmTTL: z.union([DurationOrNumberSchema, z.null()]),
+  /** Time before COLD memories demote to ARCHIVE (days, duration string, or null = no decay) */
+  coldTTL: z.union([DurationOrNumberSchema, z.null()]).optional(),
 });
 export type DecayTTLOverride = z.infer<typeof DecayTTLOverrideSchema>;
 
@@ -316,10 +412,12 @@ export type DecayTTLOverride = z.infer<typeof DecayTTLOverrideSchema>;
  * Default TTL values used when no override exists for a memory type.
  */
 export const DecayDefaultsSchema = z.object({
-  /** Default hours before HOT memories demote to COLD */
-  hotTTL: z.number().min(1).default(72),
-  /** Default days before WARM memories demote to COLD */
-  warmTTL: z.number().min(1).default(60),
+  /** Default time before HOT memories demote to WARM (hours or duration string) */
+  hotTTL: DurationOrNumberSchema.default(72),
+  /** Default time before WARM memories demote to COLD (days or duration string) */
+  warmTTL: DurationOrNumberSchema.default(60),
+  /** Default time before COLD memories demote to ARCHIVE (days or duration string) */
+  coldTTL: DurationOrNumberSchema.default(180),
 });
 export type DecayDefaults = z.infer<typeof DecayDefaultsSchema>;
 
@@ -382,6 +480,8 @@ export const MemoryTieredConfigSchema = z.object({
   tuning: TuningConfigSchema.optional(),
   /** Reporting settings for notifications */
   reporting: ReportingConfigSchema.optional(),
+  /** Profile settings for retrieval, decay, and promotion */
+  profiles: ProfilesConfigSchema.optional(),
 });
 
 export type MemoryTieredConfig = z.infer<typeof MemoryTieredConfigSchema>;
@@ -397,7 +497,7 @@ export interface ResolvedAutoRecallConfig {
   /** Maximum number of memories to inject */
   maxItems: number;
   /** Budget percentages by tier */
-  budgets: { pinned: number; hot: number; warm: number; cold: number };
+  budgets: { pinned: number; hot: number; warm: number; cold: number; archive: number };
 }
 
 /**
@@ -423,12 +523,18 @@ export interface ResolvedConfig {
   injection: {
     maxItems: number;
     minScore: number;
-    budgets: { pinned: number; hot: number; warm: number; cold: number };
+    budgets: { pinned: number; hot: number; warm: number; cold: number; archive: number };
   };
   decay: {
     intervalHours: number;
-    default: { hotTTL: number; warmTTL: number };
-    overrides: Record<MemoryTypeValue, { hotTTL: number | null; warmTTL: number | null }>;
+    default: { hotTTL: string | number; warmTTL: string | number; coldTTL: string | number };
+    overrides: Record<MemoryTypeValue, { hotTTL: string | number | null; warmTTL: string | number | null; coldTTL?: string | number | null }>;
+  };
+  profiles: {
+    retrieval: { profile: string; profiles?: Record<string, { hot: number; warm: number; cold: number; archive: number }> };
+    decay: { profile: string; profiles?: Record<string, { hotTtl: string | number; warmTtl: string | number; coldTtl: string | number }> };
+    promotion: { profile: string; profiles?: Record<string, { uses: number; days: number }> };
+    agents: Record<string, { retrieval?: string; decay?: string; promotion?: string }>;
   };
   context: { ttlHours: number };
   sessions: {
@@ -468,7 +574,7 @@ const DEFAULTS = {
     enabled: true,
     minScore: 0.2,
     maxItems: 20,
-    budgets: { pinned: 25, hot: 45, warm: 25, cold: 5 },
+    budgets: { pinned: 25, hot: 45, warm: 25, cold: 5, archive: 0 },
   },
   tiers: {
     hot: { ttlHours: 72 },
@@ -479,12 +585,18 @@ const DEFAULTS = {
   injection: {
     maxItems: 20,
     minScore: 0.2,
-    budgets: { pinned: 25, hot: 45, warm: 25, cold: 5 },
+    budgets: { pinned: 25, hot: 45, warm: 25, cold: 5, archive: 0 },
   },
   decay: {
     intervalHours: 6,
-    default: { hotTTL: 72, warmTTL: 60 },
-    overrides: {} as Record<MemoryTypeValue, { hotTTL: number | null; warmTTL: number | null }>,
+    default: { hotTTL: 72, warmTTL: 60, coldTTL: 180 },
+    overrides: {} as Record<MemoryTypeValue, { hotTTL: string | number | null; warmTTL: string | number | null; coldTTL?: string | number | null }>,
+  },
+  profiles: {
+    retrieval: { profile: "focused" },
+    decay: { profile: "thorough" },
+    promotion: { profile: "selective" },
+    agents: {},
   },
   context: { ttlHours: 4 },
   sessions: {
@@ -545,6 +657,7 @@ function resolveAutoRecall(
       hot: autoRecall.budgets?.hot ?? injection.budgets.hot,
       warm: autoRecall.budgets?.warm ?? injection.budgets.warm,
       cold: autoRecall.budgets?.cold ?? injection.budgets.cold,
+      archive: (autoRecall.budgets as { archive?: number } | undefined)?.archive ?? injection.budgets.archive,
     },
   };
 }
@@ -563,6 +676,7 @@ export function resolveConfig(config: MemoryTieredConfig): ResolvedConfig {
       hot: config.injection?.budgets?.hot ?? DEFAULTS.injection.budgets.hot,
       warm: config.injection?.budgets?.warm ?? DEFAULTS.injection.budgets.warm,
       cold: config.injection?.budgets?.cold ?? DEFAULTS.injection.budgets.cold,
+      archive: config.injection?.budgets?.archive ?? DEFAULTS.injection.budgets.archive,
     },
   };
 
@@ -610,11 +724,27 @@ export function resolveConfig(config: MemoryTieredConfig): ResolvedConfig {
       default: {
         hotTTL: config.decay?.default?.hotTTL ?? DEFAULTS.decay.default.hotTTL,
         warmTTL: config.decay?.default?.warmTTL ?? DEFAULTS.decay.default.warmTTL,
+        coldTTL: config.decay?.default?.coldTTL ?? DEFAULTS.decay.default.coldTTL,
       },
       overrides: (config.decay?.overrides ?? {}) as Record<
         MemoryTypeValue,
-        { hotTTL: number | null; warmTTL: number | null }
+        { hotTTL: string | number | null; warmTTL: string | number | null; coldTTL?: string | number | null }
       >,
+    },
+    profiles: {
+      retrieval: {
+        profile: config.profiles?.retrieval?.profile ?? DEFAULTS.profiles.retrieval.profile,
+        profiles: config.profiles?.retrieval?.profiles as Record<string, { hot: number; warm: number; cold: number; archive: number }> | undefined,
+      },
+      decay: {
+        profile: config.profiles?.decay?.profile ?? DEFAULTS.profiles.decay.profile,
+        profiles: config.profiles?.decay?.profiles as Record<string, { hotTtl: string | number; warmTtl: string | number; coldTtl: string | number }> | undefined,
+      },
+      promotion: {
+        profile: config.profiles?.promotion?.profile ?? DEFAULTS.profiles.promotion.profile,
+        profiles: config.profiles?.promotion?.profiles as Record<string, { uses: number; days: number }> | undefined,
+      },
+      agents: (config.profiles?.agents ?? {}) as Record<string, { retrieval?: string; decay?: string; promotion?: string }>,
     },
     context: {
       ttlHours: config.context?.ttlHours ?? DEFAULTS.context.ttlHours,
