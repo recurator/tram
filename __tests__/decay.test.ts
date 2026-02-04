@@ -152,13 +152,13 @@ describe("DecayEngine", () => {
 
   describe("category-aware decay", () => {
     it("should use default TTL when no override exists for memory type", () => {
-      // Create an old HOT memory (older than default 72 hours)
+      // Create an old HOT memory (older than default 72 hours by last_accessed_at)
       const oldDate = new Date();
-      oldDate.setHours(oldDate.getHours() - 100); // 100 hours old
+      oldDate.setHours(oldDate.getHours() - 100); // 100 hours since last access
       const memory = createTestMemory({
         tier: Tier.HOT,
         memory_type: MemoryType.factual,
-        created_at: oldDate.toISOString(),
+        last_accessed_at: oldDate.toISOString(),
       });
 
       insertMemory(db,memory);
@@ -167,8 +167,8 @@ describe("DecayEngine", () => {
       const config: Partial<ResolvedConfig> = {
         decay: {
           intervalHours: 6,
-          default: { hotTTL: 72, warmTTL: 60 },
-          overrides: {} as Record<MemoryTypeValue, { hotTTL: number | null; warmTTL: number | null }>,
+          default: { hotTTL: 72, warmTTL: 60, coldTTL: 180 },
+          overrides: {} as Record<MemoryTypeValue, { hotTTL: number | null; warmTTL: number | null; coldTTL?: number | null }>,
         },
       };
 
@@ -176,21 +176,23 @@ describe("DecayEngine", () => {
       const result = engine.run();
 
       expect(result.hotDemoted).toBe(1);
-      expect(result.totalProcessed).toBe(1);
+      // Memory is processed twice: once as HOT (demoted), once as WARM (checked but not demoted)
+      // because warmTTL is 60 days and memory is only 100 hours (~4 days) old
+      expect(result.totalProcessed).toBe(2);
 
-      // Verify memory was demoted
+      // Verify memory was demoted to WARM (linear decay: HOT→WARM)
       const updated = getMemory(db,memory.id);
-      expect(updated?.tier).toBe(Tier.COLD);
+      expect(updated?.tier).toBe(Tier.WARM);
     });
 
     it("should use override TTL when specified for memory type", () => {
-      // Create an old HOT episodic memory (older than override 24 hours)
+      // Create an old HOT episodic memory (older than override 24 hours by last_accessed_at)
       const oldDate = new Date();
-      oldDate.setHours(oldDate.getHours() - 30); // 30 hours old
+      oldDate.setHours(oldDate.getHours() - 30); // 30 hours since last access
       const memory = createTestMemory({
         tier: Tier.HOT,
         memory_type: MemoryType.episodic,
-        created_at: oldDate.toISOString(),
+        last_accessed_at: oldDate.toISOString(),
       });
 
       insertMemory(db,memory);
@@ -199,31 +201,32 @@ describe("DecayEngine", () => {
       const config: Partial<ResolvedConfig> = {
         decay: {
           intervalHours: 6,
-          default: { hotTTL: 72, warmTTL: 60 },
+          default: { hotTTL: 72, warmTTL: 60, coldTTL: 180 },
           overrides: {
             episodic: { hotTTL: 24, warmTTL: 30 },
-          } as Record<MemoryTypeValue, { hotTTL: number | null; warmTTL: number | null }>,
+          } as Record<MemoryTypeValue, { hotTTL: number | null; warmTTL: number | null; coldTTL?: number | null }>,
         },
       };
 
       const engine = new DecayEngine(db.getDb(), config);
       const result = engine.run();
 
-      // Memory is 30h old, override is 24h, so should be demoted
+      // Memory is 30h since last access, override is 24h, so should be demoted
       expect(result.hotDemoted).toBe(1);
 
+      // Linear decay: HOT→WARM
       const updated = getMemory(db,memory.id);
-      expect(updated?.tier).toBe(Tier.COLD);
+      expect(updated?.tier).toBe(Tier.WARM);
     });
 
     it("should NOT demote when override TTL is not exceeded", () => {
-      // Create a HOT factual memory that is 50 hours old
+      // Create a HOT factual memory that is 50 hours since last access
       const oldDate = new Date();
       oldDate.setHours(oldDate.getHours() - 50);
       const memory = createTestMemory({
         tier: Tier.HOT,
         memory_type: MemoryType.factual,
-        created_at: oldDate.toISOString(),
+        last_accessed_at: oldDate.toISOString(),
       });
 
       insertMemory(db,memory);
@@ -232,17 +235,17 @@ describe("DecayEngine", () => {
       const config: Partial<ResolvedConfig> = {
         decay: {
           intervalHours: 6,
-          default: { hotTTL: 72, warmTTL: 60 },
+          default: { hotTTL: 72, warmTTL: 60, coldTTL: 180 },
           overrides: {
             factual: { hotTTL: 100, warmTTL: 90 },
-          } as Record<MemoryTypeValue, { hotTTL: number | null; warmTTL: number | null }>,
+          } as Record<MemoryTypeValue, { hotTTL: number | null; warmTTL: number | null; coldTTL?: number | null }>,
         },
       };
 
       const engine = new DecayEngine(db.getDb(), config);
       const result = engine.run();
 
-      // Memory is 50h old, override is 100h, so should NOT be demoted
+      // Memory is 50h since last access, override is 100h, so should NOT be demoted
       expect(result.hotDemoted).toBe(0);
 
       const updated = getMemory(db,memory.id);
@@ -250,13 +253,13 @@ describe("DecayEngine", () => {
     });
 
     it("should never demote when hotTTL is null", () => {
-      // Create a very old HOT procedural memory
+      // Create a very old HOT procedural memory by last_accessed_at
       const oldDate = new Date();
-      oldDate.setHours(oldDate.getHours() - 1000); // 1000 hours old
+      oldDate.setHours(oldDate.getHours() - 1000); // 1000 hours since last access
       const memory = createTestMemory({
         tier: Tier.HOT,
         memory_type: MemoryType.procedural,
-        created_at: oldDate.toISOString(),
+        last_accessed_at: oldDate.toISOString(),
       });
 
       insertMemory(db,memory);
@@ -265,10 +268,10 @@ describe("DecayEngine", () => {
       const config: Partial<ResolvedConfig> = {
         decay: {
           intervalHours: 6,
-          default: { hotTTL: 72, warmTTL: 60 },
+          default: { hotTTL: 72, warmTTL: 60, coldTTL: 180 },
           overrides: {
             procedural: { hotTTL: null, warmTTL: null },
-          } as Record<MemoryTypeValue, { hotTTL: number | null; warmTTL: number | null }>,
+          } as Record<MemoryTypeValue, { hotTTL: number | null; warmTTL: number | null; coldTTL?: number | null }>,
         },
       };
 
@@ -299,10 +302,10 @@ describe("DecayEngine", () => {
       const config: Partial<ResolvedConfig> = {
         decay: {
           intervalHours: 6,
-          default: { hotTTL: 72, warmTTL: 60 },
+          default: { hotTTL: 72, warmTTL: 60, coldTTL: 180 },
           overrides: {
             project: { hotTTL: 48, warmTTL: null },
-          } as Record<MemoryTypeValue, { hotTTL: number | null; warmTTL: number | null }>,
+          } as Record<MemoryTypeValue, { hotTTL: number | null; warmTTL: number | null; coldTTL?: number | null }>,
         },
       };
 
@@ -317,13 +320,13 @@ describe("DecayEngine", () => {
     });
 
     it("should include memory_type in audit log context", () => {
-      // Create an old HOT memory
+      // Create an old HOT memory by last_accessed_at
       const oldDate = new Date();
       oldDate.setHours(oldDate.getHours() - 100);
       const memory = createTestMemory({
         tier: Tier.HOT,
         memory_type: MemoryType.episodic,
-        created_at: oldDate.toISOString(),
+        last_accessed_at: oldDate.toISOString(),
       });
 
       insertMemory(db,memory);
@@ -331,8 +334,8 @@ describe("DecayEngine", () => {
       const config: Partial<ResolvedConfig> = {
         decay: {
           intervalHours: 6,
-          default: { hotTTL: 72, warmTTL: 60 },
-          overrides: {} as Record<MemoryTypeValue, { hotTTL: number | null; warmTTL: number | null }>,
+          default: { hotTTL: 72, warmTTL: 60, coldTTL: 180 },
+          overrides: {} as Record<MemoryTypeValue, { hotTTL: number | null; warmTTL: number | null; coldTTL?: number | null }>,
         },
       };
 
@@ -354,38 +357,39 @@ describe("DecayEngine", () => {
       expect(oldValue.memory_type).toBe("episodic");
       expect(newValue.memory_type).toBe("episodic");
       expect(oldValue.tier).toBe("HOT");
-      expect(newValue.tier).toBe("COLD");
+      // Linear decay: HOT→WARM
+      expect(newValue.tier).toBe("WARM");
     });
 
     it("should handle mixed memory types with different TTLs", () => {
       const now = new Date();
 
-      // Create memories with different types and ages
-      // Episodic: 30h old (override 24h TTL -> should demote)
+      // Create memories with different types and ages (by last_accessed_at)
+      // Episodic: 30h since last access (override 24h TTL -> should demote)
       const episodicDate = new Date(now);
       episodicDate.setHours(episodicDate.getHours() - 30);
       const episodicMemory = createTestMemory({
         tier: Tier.HOT,
         memory_type: MemoryType.episodic,
-        created_at: episodicDate.toISOString(),
+        last_accessed_at: episodicDate.toISOString(),
       });
 
-      // Factual: 50h old (default 72h TTL -> should NOT demote)
+      // Factual: 50h since last access (default 72h TTL -> should NOT demote)
       const factualDate = new Date(now);
       factualDate.setHours(factualDate.getHours() - 50);
       const factualMemory = createTestMemory({
         tier: Tier.HOT,
         memory_type: MemoryType.factual,
-        created_at: factualDate.toISOString(),
+        last_accessed_at: factualDate.toISOString(),
       });
 
-      // Procedural: 1000h old (null TTL -> should NEVER demote)
+      // Procedural: 1000h since last access (null TTL -> should NEVER demote)
       const proceduralDate = new Date(now);
       proceduralDate.setHours(proceduralDate.getHours() - 1000);
       const proceduralMemory = createTestMemory({
         tier: Tier.HOT,
         memory_type: MemoryType.procedural,
-        created_at: proceduralDate.toISOString(),
+        last_accessed_at: proceduralDate.toISOString(),
       });
 
       insertMemory(db,episodicMemory);
@@ -395,23 +399,24 @@ describe("DecayEngine", () => {
       const config: Partial<ResolvedConfig> = {
         decay: {
           intervalHours: 6,
-          default: { hotTTL: 72, warmTTL: 60 },
+          default: { hotTTL: 72, warmTTL: 60, coldTTL: 180 },
           overrides: {
             episodic: { hotTTL: 24, warmTTL: 10 },
             procedural: { hotTTL: null, warmTTL: null },
-          } as Record<MemoryTypeValue, { hotTTL: number | null; warmTTL: number | null }>,
+          } as Record<MemoryTypeValue, { hotTTL: number | null; warmTTL: number | null; coldTTL?: number | null }>,
         },
       };
 
       const engine = new DecayEngine(db.getDb(), config);
       const result = engine.run();
 
-      // Only episodic should be demoted
+      // Only episodic should be demoted from HOT
       expect(result.hotDemoted).toBe(1);
-      expect(result.totalProcessed).toBe(3);
+      // 3 HOT memories processed + 1 newly demoted WARM memory checked = 4 total
+      expect(result.totalProcessed).toBe(4);
 
-      // Verify each memory's final tier
-      expect(getMemory(db,episodicMemory.id)?.tier).toBe(Tier.COLD);
+      // Verify each memory's final tier (linear decay: HOT→WARM)
+      expect(getMemory(db,episodicMemory.id)?.tier).toBe(Tier.WARM);
       expect(getMemory(db,factualMemory.id)?.tier).toBe(Tier.HOT);
       expect(getMemory(db,proceduralMemory.id)?.tier).toBe(Tier.HOT);
     });
@@ -445,10 +450,10 @@ describe("DecayEngine", () => {
       const config: Partial<ResolvedConfig> = {
         decay: {
           intervalHours: 6,
-          default: { hotTTL: 72, warmTTL: 60 },
+          default: { hotTTL: 72, warmTTL: 60, coldTTL: 180 },
           overrides: {
             episodic: { hotTTL: 24, warmTTL: 10 },
-          } as Record<MemoryTypeValue, { hotTTL: number | null; warmTTL: number | null }>,
+          } as Record<MemoryTypeValue, { hotTTL: number | null; warmTTL: number | null; coldTTL?: number | null }>,
         },
       };
 

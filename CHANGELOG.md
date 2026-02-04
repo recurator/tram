@@ -5,6 +5,45 @@ All notable changes to TRAM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-02-04
+
+### Added - Memory Profiles System
+
+- **Profile Presets**: Built-in profiles for retrieval, decay, and promotion (US-026)
+  - Retrieval: `narrow`, `focused`, `balanced`, `broad`, `expansive`
+  - Decay: `forgetful`, `casual`, `attentive`, `thorough`, `retentive`
+  - Promotion: `forgiving`, `fair`, `selective`, `demanding`, `ruthless`
+- **Custom Profiles**: User-defined profiles in config (US-027)
+- **Agent-Scoped Profiles**: Per-agent profile overrides (US-028)
+- **memory_tune Tool**: Runtime profile switching with persist option (US-029)
+
+### Added - Linear Tier Decay
+
+- **COLD→ARCHIVE Demotion**: Complete linear decay path HOT→WARM→COLD→ARCHIVE (US-030)
+- **coldTTL Configuration**: Configurable COLD tier TTL (default 180 days) (US-031)
+- **Duration Strings**: Support for "5m", "1h", "7d" in TTL configs (US-032)
+
+### Added - ARCHIVE Tier Injection
+
+- **ARCHIVE Budget**: Enable ARCHIVE memories in retrieval via `injection.budgets.archive` (US-033)
+- **ARCHIVE Scoring**: 0.25x recency multiplier when archive enabled (US-034)
+
+### Changed - Breaking Changes
+
+- **HOT Demotion Timing**: Now uses `last_accessed_at` instead of `created_at` (US-035)
+  - Previously: HOT memories demoted after 72h from creation
+  - Now: HOT memories demote after 72h since last access
+- **HOT Demotion Destination**: HOT now demotes to WARM, not directly to COLD (US-036)
+  - Previously: HOT → COLD (skipping WARM)
+  - Now: HOT → WARM → COLD → ARCHIVE (linear progression)
+
+### Documentation
+
+- **Use Cases Guide**: New `docs/use-cases.md` with 7 agent personas
+- **Custom Profiles Guide**: Documentation for creating custom profiles
+
+---
+
 ## [0.2.0] - 2026-02-03
 
 ### Added - Injection Quality Filtering
@@ -97,5 +136,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+[0.3.0]: https://github.com/openclaw/tram/releases/tag/v0.3.0
 [0.2.0]: https://github.com/openclaw/tram/releases/tag/v0.2.0
 [0.1.0]: https://github.com/openclaw/tram/releases/tag/v0.1.0
