@@ -347,10 +347,12 @@ extensions:
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `retrieval` | string | No | — | Retrieval profile name |
-| `decay` | string | No | — | Decay profile name |
+| `decay` | string | No | — | Decay profile name (takes immediate effect on decay engine) |
 | `promotion` | string | No | — | Promotion profile name |
 | `persist` | boolean | No | `false` | Save to config file |
 | `scope` | string | No | `session` | Where to persist: `session`, `agent`, `global` |
+
+**Note:** Decay profile changes take immediate effect. Setting `decay: "forgetful"` (5m hotTTL) means the decay engine will use those TTLs on its next run.
 
 ### Tool Examples
 

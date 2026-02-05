@@ -120,12 +120,12 @@ promotion: demanding # Old memories stay buried unless heavily used
 
 ## Runtime Tuning Examples
 
-Use the `memory_tune` tool to adjust profiles at runtime:
+Use the `memory_tune` tool to adjust profiles at runtime. **Changes take immediate effect** — the decay engine uses the active profile's TTLs on its next run.
 
 ```typescript
 // User: "Be more retentive"
 memory_tune({ decay: "retentive" })
-// → Decay timing shifts to 7d/60d/180d
+// → Decay engine now uses 7d/60d/180d TTLs (immediate effect)
 
 // User: "Focus only on recent stuff"
 memory_tune({ retrieval: "narrow" })
@@ -137,7 +137,7 @@ memory_tune({
   decay: "retentive",
   promotion: "forgiving"
 })
-// → Full persona shift
+// → Full persona shift (all profiles take effect immediately)
 
 // User: "Save this as my default"
 memory_tune({
@@ -145,8 +145,15 @@ memory_tune({
   persist: true,
   scope: "agent"
 })
-// → Writes to config, survives restart
+// → Writes to meta table, survives restart
+
+// User: "Use forgetful mode temporarily"
+memory_tune({ decay: "forgetful" })
+// → 5m/15m/1h TTLs take effect NOW (session-only by default)
+// → Next decay run will use these aggressive TTLs
 ```
+
+**Note:** Decay profile changes affect the TTLs used by the decay engine. If you set `decay: "forgetful"` (5m hotTTL), memories older than 5 minutes in HOT will be demoted on the next decay cycle.
 
 ---
 

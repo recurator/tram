@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.0] - 2026-02-04
 
+### Fixed - Profile-Aware Decay (#037)
+
+- **Active Profile Wired to DecayEngine**: The `profile_global` setting (set via `memory_tune`) now affects actual decay TTLs
+  - Previously: `memory_tune({ decay: "forgetful" })` only affected display, not decay timing
+  - Now: Setting decay profile immediately affects the decay engine's TTL calculations
+- **Shared Profile State**: New `core/active-profile.ts` provides shared state between MemoryTuneTool and DecayEngine
+- **Observability**: `DecayResult` now includes `activeProfile` showing which profile was used
+- **TTL Resolution Order**:
+  1. Per-memory-type override (config.decay.overrides[type])
+  2. Active decay profile (session > persisted > config)
+  3. Config default (config.decay.default)
+
 ### Added - Memory Profiles System
 
 - **Profile Presets**: Built-in profiles for retrieval, decay, and promotion (US-026)
