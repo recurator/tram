@@ -21,6 +21,7 @@ import type { Database as SqliteDb } from "better-sqlite3";
 import { Tier, type Memory, MemoryType } from "./types.js";
 import type { ResolvedConfig, MemoryTypeValue } from "../config.js";
 import { parseDuration } from "../utils/duration.js";
+import { getActiveDecayTTLs, resolveActiveDecayProfile } from "./active-profile.js";
 
 /**
  * Result from running the decay engine
@@ -36,6 +37,14 @@ export interface DecayResult {
   totalProcessed: number;
   /** Timestamp when decay was run */
   runAt: string;
+  /** Active decay profile used for this run */
+  activeProfile?: {
+    name: string;
+    source: string;
+    hotTtl: string | number;
+    warmTtl: string | number;
+    coldTtl: string | number;
+  };
 }
 
 /**
@@ -54,10 +63,17 @@ interface MemoryRow {
  * DecayEngine handles automatic tier demotion based on time and usage.
  * Supports category-aware decay with per-memory-type TTL overrides.
  * Implements linear decay: HOT → WARM → COLD → ARCHIVE
+ *
+ * TTL Resolution Order (for each tier):
+ * 1. Per-memory-type override from config (config.decay.overrides[type])
+ * 2. Active decay profile (from memory_tune or persisted in meta table)
+ * 3. Config default (config.decay.default)
+ * 4. Hardcoded fallback
  */
 export class DecayEngine {
   private db: SqliteDb;
   private decayConfig: ResolvedConfig["decay"];
+  private fullConfig: ResolvedConfig;
 
   /**
    * Create a new DecayEngine instance.
@@ -76,6 +92,8 @@ export class DecayEngine {
       },
       overrides: config?.decay?.overrides ?? ({} as Record<MemoryTypeValue, { hotTTL: number | null; warmTTL: number | null; coldTTL?: number | null }>),
     };
+    // Store full config for active profile resolution
+    this.fullConfig = config as ResolvedConfig;
 
     // Ensure meta table exists for storing last_decay_run
     this.ensureMetaTable();
@@ -83,40 +101,106 @@ export class DecayEngine {
 
   /**
    * Get the HOT TTL for a memory type.
+   *
+   * Resolution order:
+   * 1. Per-memory-type override (config.decay.overrides[type].hotTTL)
+   * 2. Explicit active decay profile (session, agent, global, or config - NOT builtin)
+   * 3. Config default (config.decay.default.hotTTL)
+   *
    * @param memoryType - The memory type to look up
    * @returns TTL value (string or number), or null if should never demote
    */
   private getHotTTL(memoryType: MemoryTypeValue): string | number | null {
+    // 1. Per-memory-type override has highest priority
     const override = this.decayConfig.overrides[memoryType];
-    if (override !== undefined) {
+    if (override !== undefined && override.hotTTL !== undefined) {
       return override.hotTTL;
     }
+
+    // 2. Active decay profile (only if explicitly set, not builtin default)
+    if (this.fullConfig) {
+      try {
+        const resolved = resolveActiveDecayProfile(this.db, this.fullConfig);
+        // Only use profile if explicitly configured (not builtin fallback)
+        if (resolved.source !== "builtin") {
+          return resolved.values.hotTtl;
+        }
+      } catch {
+        // Fall through to config default
+      }
+    }
+
+    // 3. Config default
     return this.decayConfig.default.hotTTL;
   }
 
   /**
    * Get the WARM TTL for a memory type.
+   *
+   * Resolution order:
+   * 1. Per-memory-type override (config.decay.overrides[type].warmTTL)
+   * 2. Explicit active decay profile (session, agent, global, or config - NOT builtin)
+   * 3. Config default (config.decay.default.warmTTL)
+   *
    * @param memoryType - The memory type to look up
    * @returns TTL value (string or number), or null if should never demote
    */
   private getWarmTTL(memoryType: MemoryTypeValue): string | number | null {
+    // 1. Per-memory-type override has highest priority
     const override = this.decayConfig.overrides[memoryType];
-    if (override !== undefined) {
+    if (override !== undefined && override.warmTTL !== undefined) {
       return override.warmTTL;
     }
+
+    // 2. Active decay profile (only if explicitly set, not builtin default)
+    if (this.fullConfig) {
+      try {
+        const resolved = resolveActiveDecayProfile(this.db, this.fullConfig);
+        // Only use profile if explicitly configured (not builtin fallback)
+        if (resolved.source !== "builtin") {
+          return resolved.values.warmTtl;
+        }
+      } catch {
+        // Fall through to config default
+      }
+    }
+
+    // 3. Config default
     return this.decayConfig.default.warmTTL;
   }
 
   /**
    * Get the COLD TTL for a memory type.
+   *
+   * Resolution order:
+   * 1. Per-memory-type override (config.decay.overrides[type].coldTTL)
+   * 2. Explicit active decay profile (session, agent, global, or config - NOT builtin)
+   * 3. Config default (config.decay.default.coldTTL)
+   *
    * @param memoryType - The memory type to look up
    * @returns TTL value (string or number), or null if should never demote
    */
   private getColdTTL(memoryType: MemoryTypeValue): string | number | null {
+    // 1. Per-memory-type override has highest priority
     const override = this.decayConfig.overrides[memoryType];
     if (override !== undefined && override.coldTTL !== undefined) {
       return override.coldTTL;
     }
+
+    // 2. Active decay profile (only if explicitly set, not builtin default)
+    if (this.fullConfig) {
+      try {
+        const resolved = resolveActiveDecayProfile(this.db, this.fullConfig);
+        // Only use profile if explicitly configured (not builtin fallback)
+        if (resolved.source !== "builtin") {
+          return resolved.values.coldTtl;
+        }
+      } catch {
+        // Fall through to config default
+      }
+    }
+
+    // 3. Config default
     return (this.decayConfig.default as { hotTTL: number; warmTTL: number; coldTTL?: number }).coldTTL ?? 180;
   }
 
@@ -167,12 +251,30 @@ export class DecayEngine {
     // Store last decay run timestamp
     this.setLastDecayRun(nowIso);
 
+    // Get active profile info for the result
+    let activeProfile: DecayResult["activeProfile"];
+    if (this.fullConfig) {
+      try {
+        const resolved = resolveActiveDecayProfile(this.db, this.fullConfig);
+        activeProfile = {
+          name: resolved.profile,
+          source: resolved.source,
+          hotTtl: resolved.values.hotTtl,
+          warmTtl: resolved.values.warmTtl,
+          coldTtl: resolved.values.coldTtl,
+        };
+      } catch {
+        // Leave undefined if resolution fails
+      }
+    }
+
     return {
       hotDemoted,
       warmDemoted,
       coldDemoted,
       totalProcessed,
       runAt: nowIso,
+      activeProfile,
     };
   }
 

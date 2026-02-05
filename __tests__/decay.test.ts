@@ -17,6 +17,10 @@ import { Database } from "../db/sqlite.js";
 import { DecayEngine } from "../core/decay.js";
 import { Tier, MemoryType, type Memory } from "../core/types.js";
 import type { ResolvedConfig, MemoryTypeValue } from "../config.js";
+import {
+  setSessionDecayProfile,
+  clearSessionDecayProfile,
+} from "../core/active-profile.js";
 
 /**
  * Create a temporary database file path
@@ -466,6 +470,196 @@ describe("DecayEngine", () => {
 
       expect(getMemory(db,episodicMemory.id)?.tier).toBe(Tier.COLD);
       expect(getMemory(db,factualMemory.id)?.tier).toBe(Tier.WARM);
+    });
+  });
+
+  describe("profile-aware decay (#037)", () => {
+    afterEach(() => {
+      // Clean up session profile after each test
+      clearSessionDecayProfile();
+    });
+
+    it("should use session profile TTLs when explicitly set", () => {
+      // Create a HOT memory that is 10 minutes since last access
+      const oldDate = new Date();
+      oldDate.setMinutes(oldDate.getMinutes() - 10); // 10 minutes ago
+      const memory = createTestMemory({
+        tier: Tier.HOT,
+        memory_type: MemoryType.factual,
+        last_accessed_at: oldDate.toISOString(),
+      });
+
+      insertMemory(db, memory);
+
+      // Config with 72h default - memory should NOT be demoted without profile
+      const config: Partial<ResolvedConfig> = {
+        decay: {
+          intervalHours: 6,
+          default: { hotTTL: 72, warmTTL: 60, coldTTL: 180 },
+          overrides: {} as Record<MemoryTypeValue, { hotTTL: number | null; warmTTL: number | null; coldTTL?: number | null }>,
+        },
+        profiles: {
+          decay: { profile: "thorough", profiles: {} },
+          retrieval: { profile: "focused", profiles: {} },
+          promotion: { profile: "selective", profiles: {} },
+          agents: {},
+        },
+      } as ResolvedConfig;
+
+      // First run without session profile - should NOT demote (10min < 72h)
+      const engine1 = new DecayEngine(db.getDb(), config);
+      const result1 = engine1.run();
+      expect(result1.hotDemoted).toBe(0);
+      expect(getMemory(db, memory.id)?.tier).toBe(Tier.HOT);
+
+      // Now set "forgetful" profile (5m hotTtl) via session
+      setSessionDecayProfile("forgetful");
+
+      // Create another memory with same age
+      const memory2 = createTestMemory({
+        tier: Tier.HOT,
+        memory_type: MemoryType.factual,
+        last_accessed_at: oldDate.toISOString(),
+      });
+      insertMemory(db, memory2);
+
+      // Second run with "forgetful" profile - should demote (10min > 5min)
+      const engine2 = new DecayEngine(db.getDb(), config);
+      const result2 = engine2.run();
+
+      // memory2 should be demoted because 10min > 5min forgetful hotTtl
+      // memory1 is still HOT from before, so it should also be demoted now
+      expect(result2.hotDemoted).toBe(2);
+      expect(getMemory(db, memory.id)?.tier).toBe(Tier.WARM);
+      expect(getMemory(db, memory2.id)?.tier).toBe(Tier.WARM);
+
+      // Verify the active profile is included in results
+      expect(result2.activeProfile).toBeDefined();
+      expect(result2.activeProfile?.name).toBe("forgetful");
+      expect(result2.activeProfile?.source).toBe("session");
+    });
+
+    it("should use persisted global profile from meta table", () => {
+      // Create a HOT memory that is 20 minutes since last access
+      const oldDate = new Date();
+      oldDate.setMinutes(oldDate.getMinutes() - 20); // 20 minutes ago
+      const memory = createTestMemory({
+        tier: Tier.HOT,
+        memory_type: MemoryType.factual,
+        last_accessed_at: oldDate.toISOString(),
+      });
+
+      insertMemory(db, memory);
+
+      const config: Partial<ResolvedConfig> = {
+        decay: {
+          intervalHours: 6,
+          default: { hotTTL: 72, warmTTL: 60, coldTTL: 180 }, // Would NOT demote
+          overrides: {} as Record<MemoryTypeValue, { hotTTL: number | null; warmTTL: number | null; coldTTL?: number | null }>,
+        },
+        profiles: {
+          decay: { profile: "thorough", profiles: {} },
+          retrieval: { profile: "focused", profiles: {} },
+          promotion: { profile: "selective", profiles: {} },
+          agents: {},
+        },
+      } as ResolvedConfig;
+
+      // Create engine first to ensure meta table exists
+      const engine = new DecayEngine(db.getDb(), config);
+
+      // Now persist "casual" profile (15m hotTtl) in meta table
+      const sqliteDb = db.getDb();
+      sqliteDb.prepare(`
+        INSERT OR REPLACE INTO meta (key, value, updated_at)
+        VALUES (?, ?, ?)
+      `).run("profile_global", JSON.stringify({ decay: "casual" }), new Date().toISOString());
+
+      const result = engine.run();
+
+      // "casual" profile has 15m hotTtl, memory is 20min old -> should demote
+      expect(result.hotDemoted).toBe(1);
+      expect(getMemory(db, memory.id)?.tier).toBe(Tier.WARM);
+      expect(result.activeProfile?.name).toBe("casual");
+      expect(result.activeProfile?.source).toBe("global");
+    });
+
+    it("should give per-memory-type override priority over profile", () => {
+      // Create a HOT procedural memory that is 10 minutes since last access
+      const oldDate = new Date();
+      oldDate.setMinutes(oldDate.getMinutes() - 10);
+      const memory = createTestMemory({
+        tier: Tier.HOT,
+        memory_type: MemoryType.procedural,
+        last_accessed_at: oldDate.toISOString(),
+      });
+
+      insertMemory(db, memory);
+
+      // Set "forgetful" profile (5m hotTtl) - would normally demote
+      setSessionDecayProfile("forgetful");
+
+      // But set procedural override to null (never demote)
+      const config: Partial<ResolvedConfig> = {
+        decay: {
+          intervalHours: 6,
+          default: { hotTTL: 72, warmTTL: 60, coldTTL: 180 },
+          overrides: {
+            procedural: { hotTTL: null, warmTTL: null },
+          } as Record<MemoryTypeValue, { hotTTL: number | null; warmTTL: number | null; coldTTL?: number | null }>,
+        },
+        profiles: {
+          decay: { profile: "thorough", profiles: {} },
+          retrieval: { profile: "focused", profiles: {} },
+          promotion: { profile: "selective", profiles: {} },
+          agents: {},
+        },
+      } as ResolvedConfig;
+
+      const engine = new DecayEngine(db.getDb(), config);
+      const result = engine.run();
+
+      // Override (null) takes priority over profile - should NOT demote
+      expect(result.hotDemoted).toBe(0);
+      expect(getMemory(db, memory.id)?.tier).toBe(Tier.HOT);
+    });
+
+    it("should fall back to config default when no profile is explicitly set", () => {
+      // Create a HOT memory 50 hours since last access (< 72h default)
+      const oldDate = new Date();
+      oldDate.setHours(oldDate.getHours() - 50);
+      const memory = createTestMemory({
+        tier: Tier.HOT,
+        memory_type: MemoryType.factual,
+        last_accessed_at: oldDate.toISOString(),
+      });
+
+      insertMemory(db, memory);
+
+      // No explicit profile set (profiles.decay.profile is undefined/empty)
+      // Should use config.decay.default (72h)
+      const config: Partial<ResolvedConfig> = {
+        decay: {
+          intervalHours: 6,
+          default: { hotTTL: 72, warmTTL: 60, coldTTL: 180 },
+          overrides: {} as Record<MemoryTypeValue, { hotTTL: number | null; warmTTL: number | null; coldTTL?: number | null }>,
+        },
+        profiles: {
+          decay: { profile: "", profiles: {} },  // Empty string = no profile
+          retrieval: { profile: "focused", profiles: {} },
+          promotion: { profile: "selective", profiles: {} },
+          agents: {},
+        },
+      } as ResolvedConfig;
+
+      const engine = new DecayEngine(db.getDb(), config);
+      const result = engine.run();
+
+      // 50h < 72h default -> should NOT demote
+      expect(result.hotDemoted).toBe(0);
+      expect(getMemory(db, memory.id)?.tier).toBe(Tier.HOT);
+      // activeProfile should be builtin since profiles.decay.profile is empty
+      expect(result.activeProfile?.source).toBe("builtin");
     });
   });
 });

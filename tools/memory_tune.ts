@@ -30,6 +30,13 @@ import {
   type PromotionProfile,
   type ProfileSource,
 } from "../core/profiles.js";
+import {
+  setSessionDecayProfile,
+  getSessionDecayProfile,
+  clearSessionDecayProfile as clearActiveSessionDecayProfile,
+  setCurrentAgentId as setActiveAgentId,
+  getCurrentAgentId as getActiveAgentId,
+} from "../core/active-profile.js";
 
 /**
  * Input parameters for memory_tune tool
@@ -99,6 +106,8 @@ export class MemoryTuneTool {
    */
   static setAgentId(agentId: string): void {
     currentAgentId = agentId;
+    // Also sync with shared active-profile state for DecayEngine
+    setActiveAgentId(agentId);
   }
 
   /**
@@ -113,6 +122,8 @@ export class MemoryTuneTool {
    */
   static clearSessionOverrides(): void {
     sessionOverrides = {};
+    // Also clear the shared active-profile decay state
+    clearActiveSessionDecayProfile();
   }
 
   /**
@@ -166,6 +177,8 @@ export class MemoryTuneTool {
         }
         if (params.decay) {
           sessionOverrides.decay = params.decay;
+          // Also sync to shared active-profile state for DecayEngine
+          setSessionDecayProfile(params.decay);
           changes.push(`decay → ${params.decay} (session)`);
         }
         if (params.promotion) {
