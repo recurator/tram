@@ -1,3 +1,71 @@
+
+# ⚠️ ARCHIVED - TRAM (Tiered Reversible Associative Memory)
+
+**This repository is archived.** TRAM has been superseded by **[CCAS (Consciousness Continuity Across Substrate)](https://github.com/recurator/CCAS)**, a next-generation memory system designed for multi-agent frameworks.
+
+## Why CCAS?
+
+TRAM was designed as a single-agent memory system for OpenClaw. CCAS expands this vision to support:
+
+- *Multi-agent coordination* with coalition-based memory sharing
+- *Framework-agnostic architecture* (OpenClaw, LangChain, CrewAI, AutoGPT, AutoGen, etc.)
+- *Ontological transformation* (not time-based decay)
+- *Agent-relative tier views* (same memory can be different tiers for different agents)
+- *Zero-token retrieval* without LLM-based memory selection
+- *Rust core* for performance, safety, and concurrency
+
+If you're building with a single OpenClaw agent, TRAM still works. For multi-agent systems or other frameworks, migrate to CCAS.
+
+## Migration Path
+
+TRAM concepts that carry forward to CCAS:
+- 4-tier memory system (HOT/WARM/COLD/ARCHIVE)
+- Semantic search + metadata filtering
+- Memory types (episodic/procedural/factual/project)
+- SQLite + FTS5 + sqlite-vec stack
+- Composite scoring (similarity + recency + frequency)
+
+CCAS differences:
+- *Rust core* (vs TypeScript)
+- *Multi-agent native* (coalitions, sharing, agent-relative views)
+- *Transformation-based* (consolidation, pattern extraction vs time decay)
+- *Framework adapters* (works with any agent framework)
+
+## TRAM Documentation (Reference Only)
+
+The documentation below describes TRAM as it exists today. It remains functional for single-agent OpenClaw use cases.
+
+---
+
+# TRAM - Tiered Reversible Associative Memory
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![OpenClaw Plugin](https://img.shields.io/badge/OpenClaw-Plugin-blue.svg)](https://github.com/openclaw/openclaw)
+
+A memory extension for [OpenClaw](https://github.com/openclaw/openclaw) that gives AI agents persistent, semantic memory with automatic decay and promotion.
+
+## What is TRAM?
+
+*T*iered — 4-tier system (HOT → WARM → COLD → ARCHIVE) for intelligent memory lifecycle
+*R*eversible — Soft-delete by default; restore forgotten memories anytime
+*A*ssociative — Semantic search using embeddings + full-text search
+*M*emory — Persistent SQLite storage, works fully offline
+
+[... rest of original README content ...]
+
+---
+
+## Links
+
+- *CCAS (Successor)*: https://github.com/recurator/CCAS
+- *CCAS Documentation*: https://github.com/recurator/CCAS/blob/main/README.md
+- *Theoretical Foundation*: [CCAS_FINAL_STUDY.md](https://github.com/recurator/CCAS/blob/main/docs/CCAS_FINAL_STUDY.md)
+
+*TRAM archived: February 27, 2026*
+*Superseded by: CCAS*
+
+--
+
 # TRAM - Tiered Reversible Associative Memory
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
