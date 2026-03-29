@@ -65,9 +65,27 @@ export interface ScoreBreakdown {
  */
 export class MemoryScorer {
   private weights: ScoringWeights;
+  private archiveEnabled: boolean;
 
-  constructor(weights: Partial<ScoringWeights> = {}) {
+  constructor(weights: Partial<ScoringWeights> = {}, archiveEnabled: boolean = false) {
     this.weights = { ...DEFAULT_WEIGHTS, ...weights };
+    this.archiveEnabled = archiveEnabled;
+  }
+
+  /**
+   * Enable or disable ARCHIVE tier scoring.
+   * When enabled, ARCHIVE memories get 0.25x recency multiplier.
+   * When disabled (default), ARCHIVE returns score = 0.
+   */
+  setArchiveEnabled(enabled: boolean): void {
+    this.archiveEnabled = enabled;
+  }
+
+  /**
+   * Check if ARCHIVE scoring is enabled.
+   */
+  isArchiveEnabled(): boolean {
+    return this.archiveEnabled;
   }
 
   /**
@@ -78,8 +96,8 @@ export class MemoryScorer {
    * @returns The composite score (0-1)
    */
   score(memory: Memory, similarity: number = 1, now: Date = new Date()): number {
-    // ARCHIVE tier always returns 0
-    if (memory.tier === Tier.ARCHIVE) {
+    // ARCHIVE tier returns 0 unless archiveEnabled
+    if (memory.tier === Tier.ARCHIVE && !this.archiveEnabled) {
       return 0;
     }
 
@@ -99,8 +117,8 @@ export class MemoryScorer {
     similarity: number = 1,
     now: Date = new Date()
   ): ScoreBreakdown {
-    // ARCHIVE tier returns zero breakdown
-    if (memory.tier === Tier.ARCHIVE) {
+    // ARCHIVE tier returns zero breakdown unless archiveEnabled
+    if (memory.tier === Tier.ARCHIVE && !this.archiveEnabled) {
       return {
         similarityComponent: 0,
         recencyComponent: 0,
@@ -129,8 +147,12 @@ export class MemoryScorer {
       recencyValue = Math.exp(-effectiveAgeDays / halfLifeDays);
     }
 
-    // Apply COLD tier adjustment: recency * 0.5
-    if (memory.tier === Tier.COLD) {
+    // Apply tier adjustments:
+    // - COLD: 0.5x recency
+    // - ARCHIVE: 0.25x recency (when archiveEnabled)
+    if (memory.tier === Tier.ARCHIVE) {
+      recencyValue *= 0.25;
+    } else if (memory.tier === Tier.COLD) {
       recencyValue *= 0.5;
     }
 

@@ -36,7 +36,7 @@ describe("AutoRecall Configuration", () => {
         enabled: true,
         minScore: 0.3,
         maxItems: 15,
-        budgets: { pinned: 20, hot: 50, warm: 20, cold: 10 },
+        budgets: { pinned: 20, hot: 50, warm: 20, cold: 10, archive: 0 },
       };
       const result = AutoRecallConfigSchema.parse(input);
       expect(result).toEqual(input);
@@ -71,6 +71,7 @@ describe("AutoRecall Configuration", () => {
         hot: 45,
         warm: 25,
         cold: 5,
+        archive: 0,
       });
     });
   });
@@ -88,6 +89,7 @@ describe("AutoRecall Configuration", () => {
         hot: 45,
         warm: 25,
         cold: 5,
+        archive: 0,
       });
     });
   });
@@ -121,6 +123,7 @@ describe("AutoRecall Configuration", () => {
         hot: 60,
         warm: 20,
         cold: 10,
+        archive: 0,
       });
     });
 
@@ -150,6 +153,7 @@ describe("AutoRecall Configuration", () => {
         hot: 40,
         warm: 20,
         cold: 10,
+        archive: 0,
       });
     });
 

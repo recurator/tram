@@ -28,6 +28,8 @@ export interface BudgetConfig {
   warm: number;
   /** Percentage of slots for COLD tier (default: 0.05) */
   cold: number;
+  /** Percentage of slots for ARCHIVE tier (default: 0, never auto-injected) */
+  archive?: number;
 }
 
 export const DEFAULT_BUDGETS: BudgetConfig = {
@@ -35,6 +37,7 @@ export const DEFAULT_BUDGETS: BudgetConfig = {
   hot: 0.45,
   warm: 0.25,
   cold: 0.05,
+  archive: 0,
 };
 
 /**
@@ -72,6 +75,7 @@ export interface AllocationResult {
     hot: number;
     warm: number;
     cold: number;
+    archive: number;
   };
   /** Number of memories excluded due to do_not_inject */
   excludedCount: number;
@@ -113,13 +117,22 @@ export class TierBudgetAllocator {
     now: Date = new Date()
   ): AllocationResult {
     const totalConsidered = memories.length;
+    const archiveBudget = this.config.budgets.archive ?? 0;
 
     // Filter out memories that should not be injected
-    // Excludes: do_not_inject = true, ARCHIVE tier
-    const eligibleMemories = memories.filter(
-      (m) => !m.do_not_inject && m.tier !== Tier.ARCHIVE
-    );
+    // Excludes: do_not_inject = true
+    // ARCHIVE excluded only when archive budget is 0
+    const eligibleMemories = memories.filter((m) => {
+      if (m.do_not_inject) return false;
+      if (m.tier === Tier.ARCHIVE && archiveBudget === 0) return false;
+      return true;
+    });
     const excludedCount = totalConsidered - eligibleMemories.length;
+
+    // Enable archive scoring in scorer if budget > 0
+    if (archiveBudget > 0) {
+      this.scorer.setArchiveEnabled(true);
+    }
 
     // Score all eligible memories
     const scoredMemories: ScoredMemory[] = eligibleMemories.map((memory) => ({
@@ -131,11 +144,12 @@ export class TierBudgetAllocator {
     const pinnedMemories = scoredMemories.filter((sm) => sm.memory.pinned);
     const unpinnedMemories = scoredMemories.filter((sm) => !sm.memory.pinned);
 
-    // Group unpinned memories by tier
+    // Group unpinned memories by tier (including ARCHIVE)
     const byTier = {
       [Tier.HOT]: unpinnedMemories.filter((sm) => sm.memory.tier === Tier.HOT),
       [Tier.WARM]: unpinnedMemories.filter((sm) => sm.memory.tier === Tier.WARM),
       [Tier.COLD]: unpinnedMemories.filter((sm) => sm.memory.tier === Tier.COLD),
+      [Tier.ARCHIVE]: unpinnedMemories.filter((sm) => sm.memory.tier === Tier.ARCHIVE),
     };
 
     // Sort each group by score (highest first)
@@ -143,6 +157,7 @@ export class TierBudgetAllocator {
     byTier[Tier.HOT].sort((a, b) => b.score - a.score);
     byTier[Tier.WARM].sort((a, b) => b.score - a.score);
     byTier[Tier.COLD].sort((a, b) => b.score - a.score);
+    byTier[Tier.ARCHIVE].sort((a, b) => b.score - a.score);
 
     // Calculate slot counts based on budgets
     const maxItems = this.config.maxItems;
@@ -152,12 +167,14 @@ export class TierBudgetAllocator {
     const hotSlots = Math.floor(maxItems * budgets.hot);
     const warmSlots = Math.floor(maxItems * budgets.warm);
     const coldSlots = Math.floor(maxItems * budgets.cold);
+    const archiveSlots = Math.floor(maxItems * archiveBudget);
 
     // Fill buckets up to their slot limits
     const selectedPinned = pinnedMemories.slice(0, pinnedSlots);
     const selectedHot = byTier[Tier.HOT].slice(0, hotSlots);
     const selectedWarm = byTier[Tier.WARM].slice(0, warmSlots);
     const selectedCold = byTier[Tier.COLD].slice(0, coldSlots);
+    const selectedArchive = byTier[Tier.ARCHIVE].slice(0, archiveSlots);
 
     // Combine all selected memories and sort by score for final ordering
     const allSelected = [
@@ -165,6 +182,7 @@ export class TierBudgetAllocator {
       ...selectedHot,
       ...selectedWarm,
       ...selectedCold,
+      ...selectedArchive,
     ];
 
     // Sort combined result by score (highest first)
@@ -184,6 +202,9 @@ export class TierBudgetAllocator {
       ).length,
       cold: finalSelected.filter(
         (sm) => !sm.memory.pinned && sm.memory.tier === Tier.COLD
+      ).length,
+      archive: finalSelected.filter(
+        (sm) => !sm.memory.pinned && sm.memory.tier === Tier.ARCHIVE
       ).length,
     };
 

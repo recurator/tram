@@ -45,6 +45,7 @@ import { MemoryUnpinTool } from "./tools/memory_unpin.js";
 import { MemoryExplainTool } from "./tools/memory_explain.js";
 import { MemorySetContextTool } from "./tools/memory_set_context.js";
 import { MemoryClearContextTool } from "./tools/memory_clear_context.js";
+import { MemoryTuneTool } from "./tools/memory_tune.js";
 
 // File-based hook initializers
 import { initAutoRecallHook } from "./hooks/auto-recall/handler.js";
@@ -402,6 +403,7 @@ const plugin: Plugin = {
     const explainTool = new MemoryExplainTool(db, embeddingProvider, vectorHelper);
     const setContextTool = new MemorySetContextTool(db);
     const clearContextTool = new MemoryClearContextTool(db);
+    const tuneTool = new MemoryTuneTool(db, config);
 
     // Register all 9 tools using OpenClaw's expected format
     api.registerTool({
@@ -545,6 +547,23 @@ const plugin: Plugin = {
       async execute(_toolCallId, _params) {
         const result = await clearContextTool.execute();
         return { content: result.content, details: (result as {details?: unknown}).details };
+      },
+    });
+
+    api.registerTool({
+      name: "memory_tune",
+      label: "Memory Tune",
+      description: "Adjust memory retrieval, decay, or promotion profiles at runtime. Use without arguments to see current settings.",
+      parameters: Type.Object({
+        retrieval: Type.Optional(Type.String({ description: "Retrieval profile name (narrow, focused, balanced, broad, expansive)" })),
+        decay: Type.Optional(Type.String({ description: "Decay profile name (forgetful, casual, attentive, thorough, retentive)" })),
+        promotion: Type.Optional(Type.String({ description: "Promotion profile name (forgiving, fair, selective, demanding, ruthless)" })),
+        persist: Type.Optional(Type.Boolean({ description: "Save to config (requires scope)" })),
+        scope: Type.Optional(Type.String({ description: "Where to persist: session (default), agent, or global" })),
+      }),
+      async execute(_toolCallId, params) {
+        const result = await tuneTool.execute(params as unknown as Parameters<typeof tuneTool.execute>[0]);
+        return { content: result.content, details: result.details };
       },
     });
 
